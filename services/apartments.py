@@ -1,0 +1,92 @@
+"""Квартиры: реестр квартир, собственников и членов ТСЖ."""
+
+import sqlite3
+
+from db import database as db
+from services import validation as check
+from services.errors import AppError
+
+
+def get_apartments(search="", only_members=False):
+    """Возвращает список квартир с текущим долгом (можно искать и фильтровать)."""
+    # Собираем запрос по частям. f-строка подставляет в текст запроса долг из database.py
+    sql = (
+        "SELECT a.apartment_id, a.number, a.area, a.owner_name, "
+        f"a.owner_phone, a.is_member, {db.DEBT_SQL} AS debt "
+        "FROM apartments a"
+    )
+    if only_members:  # фильтр «только члены ТСЖ»
+        sql += " WHERE a.is_member = 1"
+    sql += " ORDER BY a.number"  # сортируем по номеру квартиры
+    rows = db.query_all(sql)
+
+    # Поиск делаем в Python: LIKE в SQLite не различает регистр только для латиницы,
+    # а у нас русские фамилии.
+    search = search.strip().lower()
+    if search:
+        rows = [  # список только из подходящих строк
+            row
+            for row in rows
+            if search == str(row["number"]) or search in row["owner_name"].lower()
+        ]
+    return rows
+
+
+def get_apartment(apartment_id):
+    """Возвращает одну квартиру по id или None."""
+    return db.query_one("SELECT * FROM apartments WHERE apartment_id = ?", (apartment_id,))
+
+
+def find_apartment_id(number_text):
+    """Ищет квартиру по номеру, который ввёл пользователь, и возвращает её id."""
+    number_text = check.require_text(number_text, "Квартира")
+    number = check.parse_positive_int(number_text, "Квартира")
+    row = db.query_one("SELECT apartment_id FROM apartments WHERE number = ?", (number,))
+    if row is None:  # такой квартиры нет в реестре
+        raise AppError(f"Квартира {number} не найдена. Уточните номер у председателя.")
+    return row["apartment_id"]
+
+
+def get_summary():
+    """Возвращает пару (всего квартир, из них членов ТСЖ)."""
+    row = db.query_one(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(is_member), 0) AS members FROM apartments"
+    )
+    return row["total"], row["members"]
+
+
+def save_apartment(data, apartment_id=None):
+    """Добавляет квартиру (apartment_id=None) или изменяет существующую."""
+    number = check.parse_positive_int(data["number"], "Номер квартиры")
+    area = check.parse_positive_number(data["area"], "Площадь")
+    owner_name = check.require_text(data["owner_name"], "ФИО собственника")
+    owner_phone = check.check_phone(data["owner_phone"])
+    is_member = 1 if data["is_member"] else 0  # галочку превращаем в 1 или 0
+
+    try:
+        if apartment_id is None:  # новая квартира
+            db.execute(
+                "INSERT INTO apartments (number, area, owner_name, "
+                "owner_phone, is_member) VALUES (?, ?, ?, ?, ?)",
+                (number, area, owner_name, owner_phone, is_member),
+            )
+        else:  # правка существующей
+            db.execute(
+                "UPDATE apartments SET number = ?, area = ?, owner_name = ?, "
+                "owner_phone = ?, is_member = ? WHERE apartment_id = ?",
+                (number, area, owner_name, owner_phone, is_member, apartment_id),
+            )
+    except sqlite3.IntegrityError:  # сработало UNIQUE: такой номер уже есть
+        raise AppError(f"Квартира с номером {number} уже существует.") from None
+
+
+def delete_apartment(apartment_id):
+    """Удаляет квартиру, если к ней ничего не привязано."""
+    apartment = get_apartment(apartment_id)
+    try:
+        db.execute("DELETE FROM apartments WHERE apartment_id = ?", (apartment_id,))
+    except sqlite3.IntegrityError:  # сработал внешний ключ: есть начисления, оплаты или заявки
+        raise AppError(
+            f"Нельзя удалить квартиру {apartment['number']}: "
+            "к ней привязаны начисления, оплаты или другие данные."
+        ) from None
