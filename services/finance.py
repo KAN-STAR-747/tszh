@@ -10,12 +10,12 @@ from services import dates, hoa
 from services import validation as check
 from services.errors import AppError
 
-MAINTENANCE = "Содержание"  # назначение ежемесячного начисления
+MAINTENANCE = "Содержание"
 
 
 def calc_charge(area, tariff):
     """Ежемесячное начисление в копейках: площадь * тариф (за 1 м2)."""
-    return round(area * tariff)  # round округляет до целой копейки
+    return round(area * tariff)
 
 
 def get_apartments_for_charge():
@@ -30,7 +30,6 @@ def charge_month(month):
     if not apartments:
         raise AppError("Нет ни одной квартиры для начисления.")
 
-    # Защита от повторного начисления за тот же месяц
     already = db.query_one(
         "SELECT 1 FROM charges WHERE period = ? AND purpose = ?", (month, MAINTENANCE)
     )
@@ -41,7 +40,6 @@ def charge_month(month):
             "Повторное начисление невозможно."
         )
 
-    # Все начисления записываем одной транзакцией: либо для всех квартир, либо ни для одной
     with db.transaction() as conn:
         for apartment in apartments:
             conn.execute(
@@ -53,13 +51,13 @@ def charge_month(month):
                     calc_charge(apartment["area"], tariff),
                 ),
             )
-    return len(apartments)  # сколько начислений создано
+    return len(apartments)
 
 
 def charge_target(purpose, amount_text, month):
     """Создаёт целевой сбор для всех квартир. Возвращает (сколько начислений, общая сумма)."""
     purpose = check.require_text(purpose, "Назначение")
-    if purpose.lower() == MAINTENANCE.lower():  # это назначение занято
+    if purpose.lower() == MAINTENANCE.lower():
         raise AppError(f"Назначение «{MAINTENANCE}» занято ежемесячным начислением.")
     amount = check.rubles_to_kopecks(amount_text, "Сумма с квартиры")
     apartments = get_apartments_for_charge()
@@ -74,7 +72,7 @@ def charge_target(purpose, amount_text, month):
                     "VALUES (?, ?, ?, ?)",
                     (apartment["apartment_id"], month, purpose, amount),
                 )
-    except sqlite3.IntegrityError:  # сработал UNIQUE (квартира + месяц + назначение)
+    except sqlite3.IntegrityError:
         raise AppError("Сбор с таким назначением за этот месяц уже начислен.") from None
     return len(apartments), amount * len(apartments)
 
@@ -93,8 +91,6 @@ def add_payment(apartment_id, amount_text, date_text, comment):
 
 def get_month_table(month):
     """Таблица для вкладки «Финансы»: по каждой квартире начислено, оплачено, долг."""
-    # В скобках - вложенные запросы: сумма начислений и сумма оплат за выбранный месяц.
-    # substr(p.paid_at, 1, 7) берёт из даты оплаты только «ГГГГ-ММ».
     return db.query_all(
         "SELECT a.apartment_id, a.number, a.owner_name, "
         "COALESCE((SELECT SUM(amount) FROM charges c "
@@ -103,7 +99,7 @@ def get_month_table(month):
         "COALESCE((SELECT SUM(amount) FROM payment p "
         "          WHERE p.apartment_id = a.apartment_id "
         "          AND substr(p.paid_at, 1, 7) = ?), 0) AS paid, "
-        f"{db.DEBT_SQL} AS debt "  # долг считается за всё время, а не за месяц
+        f"{db.DEBT_SQL} AS debt "
         "FROM apartments a ORDER BY a.number",
         (month, month),
     )
@@ -117,14 +113,13 @@ def get_resident_summary(apartment_id):
     payments = db.query_all(
         "SELECT paid_at, comment, amount FROM payment WHERE apartment_id = ?", (apartment_id,)
     )
-    # Складываем начисления и оплаты в один список кортежей (дата, операция, назначение, сумма)
     history = []
     for row in charges:
         history.append((row["period"], "Начисление", row["purpose"], row["amount"]))
     for row in payments:
-        purpose = row["comment"] or "Оплата"  # если комментария нет - пишем «Оплата»
-        history.append((row["paid_at"], "Оплата", purpose, -row["amount"]))  # оплата со знаком «-»
-    history.sort(key=lambda item: item[0], reverse=True)  # свежие сверху
+        purpose = row["comment"] or "Оплата"
+        history.append((row["paid_at"], "Оплата", purpose, -row["amount"]))
+    history.sort(key=lambda item: item[0], reverse=True)
 
     charged = sum(row["amount"] for row in charges)
     paid = sum(row["amount"] for row in payments)
