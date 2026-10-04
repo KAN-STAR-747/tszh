@@ -5,7 +5,13 @@ from datetime import datetime
 
 from services.errors import AppError
 
-MIN_PASSWORD_LENGTH = 6
+MIN_PASSWORD_LENGTH = 8
+
+MAX_TITLE = 50
+MAX_DESCRIPTION = 250
+MAX_EXECUTOR = 25
+MAX_PURPOSE = 50
+MAX_COMMENT = 50
 
 
 def require_text(value, field_name):
@@ -24,19 +30,48 @@ def check_inn(value):
     return value
 
 
+def check_length(value, max_length, field_name):
+    """Проверяет, что текст не длиннее допустимого, и возвращает его без пробелов по краям."""
+    value = value.strip()
+    if len(value) > max_length:
+        raise AppError(f"Поле «{field_name}» не должно быть длиннее {max_length} символов.")
+    return value
+
+
 def check_phone(value):
-    """Проверяет телефон: цифры и необязательный «+» в начале."""
+    """Проверяет телефон: необязательный «+» и от 10 до 11 цифр."""
     phone = value.replace(" ", "")
-    if not re.fullmatch(r"\+?\d{10,15}", phone):
-        raise AppError("Телефон может содержать только цифры и знак «+».")
+    if not re.fullmatch(r"\+?\d{10,11}", phone):
+        raise AppError(
+            "Телефон может начинаться с «+», дальше только цифры (не больше 11), "
+            "например +79991234567 или 89991234567."
+        )
     return phone
 
 
+def normalize_phone(value):
+    """Приводит телефон к виду для сравнения: только цифры, начало «8» заменено на «7»."""
+    digits = re.sub(r"\D", "", value)
+    if len(digits) == 11 and digits[0] == "8":
+        digits = "7" + digits[1:]
+    return digits
+
+
+def same_surname(full_name_a, full_name_b):
+    """True, если фамилии (первое слово ФИО) совпадают без учёта регистра."""
+    first_a = full_name_a.split()[0].lower() if full_name_a.split() else ""
+    first_b = full_name_b.split()[0].lower() if full_name_b.split() else ""
+    return first_a != "" and first_a == first_b
+
+
 def check_login(value):
-    """Проверяет логин: не пустой и без пробелов."""
+    """Проверяет логин: латинские буквы, цифры и знаки _ . - (хотя бы одна буква)."""
     login = require_text(value, "Логин")
-    if " " in login:
-        raise AppError("Логин не должен содержать пробелов.")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", login) or not re.search(r"[A-Za-z]", login):
+        raise AppError(
+            "Логин должен состоять из латинских букв (можно цифры и знаки _ . -), "
+            "без пробелов и русских букв."
+        )
     return login
 
 

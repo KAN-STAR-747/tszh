@@ -34,14 +34,9 @@ def get_apartment(apartment_id):
     return db.query_one("SELECT * FROM apartments WHERE apartment_id = ?", (apartment_id,))
 
 
-def find_apartment_id(number_text):
-    """Ищет квартиру по номеру, который ввёл пользователь, и возвращает её id."""
-    number_text = check.require_text(number_text, "Квартира")
-    number = check.parse_positive_int(number_text, "Квартира")
-    row = db.query_one("SELECT apartment_id FROM apartments WHERE number = ?", (number,))
-    if row is None:
-        raise AppError(f"Квартира {number} не найдена. Уточните номер у председателя.")
-    return row["apartment_id"]
+def get_apartment_by_number(number):
+    """Возвращает квартиру по её номеру (число) или None, если такой нет в реестре."""
+    return db.query_one("SELECT * FROM apartments WHERE number = ?", (number,))
 
 
 def get_summary():

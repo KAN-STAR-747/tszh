@@ -10,7 +10,7 @@ SOURCES = ["Звонок", "Приложение"]
 
 SELECT_SQL = """
 SELECT r.requests_id, r.title, r.description, r.source, r.status,
-       r.executor, r.created_at, r.closed_at, r.apartment_id,
+       r.executor, r.created_at, r.closed_at, r.apartment_id, r.user_id,
        a.number AS apartment_number, u.full_name AS author_name
 FROM requests r
 LEFT JOIN apartments a ON a.apartment_id = r.apartment_id
@@ -20,22 +20,16 @@ LEFT JOIN users u ON u.users_id = r.user_id
 
 def create_request(user_id, apartment_id, title, description, source, executor=""):
     """Создаёт заявку со статусом «Новая» и возвращает её id."""
-    title = check.require_text(title, "Тема")
+    title = check.check_length(check.require_text(title, "Тема"), check.MAX_TITLE, "Тема")
+    description = check.check_length(description, check.MAX_DESCRIPTION, "Описание")
+    executor = check.check_length(executor, check.MAX_EXECUTOR, "Исполнитель")
     if source not in SOURCES:
         raise AppError("Выберите источник заявки.")
     return db.execute(
         "INSERT INTO requests (user_id, apartment_id, title, description, "
         "source, status, executor, created_at) "
         "VALUES (?, ?, ?, ?, ?, 'Новая', ?, ?)",
-        (
-            user_id,
-            apartment_id,
-            title,
-            description.strip(),
-            source,
-            executor.strip(),
-            dates.now_text(),
-        ),
+        (user_id, apartment_id, title, description, source, executor, dates.now_text()),
     )
 
 
@@ -89,13 +83,31 @@ def move_to_next_status(request_id):
     )
 
 
-def set_executor(request_id, executor):
-    """Записывает имя исполнителя в заявку."""
+def update_request(request_id, description, executor):
+    """Изменяет описание и исполнителя заявки. Выполненную заявку менять нельзя."""
+    request = get_request(request_id)
+    if request is None:
+        raise AppError("Заявка не найдена.")
+    if request["status"] == "Выполнена":
+        raise AppError("Выполненную заявку изменять нельзя.")
+    description = check.check_length(description, check.MAX_DESCRIPTION, "Описание")
+    executor = check.check_length(executor, check.MAX_EXECUTOR, "Исполнитель")
     db.execute(
-        "UPDATE requests SET executor = ? WHERE requests_id = ?", (executor.strip(), request_id)
+        "UPDATE requests SET description = ?, executor = ? WHERE requests_id = ?",
+        (description, executor, request_id),
     )
 
 
 def delete_request(request_id):
     """Удаляет заявку."""
     db.execute("DELETE FROM requests WHERE requests_id = ?", (request_id,))
+
+
+def delete_own_request(user_id, request_id):
+    """Жилец удаляет свою заявку, пока у неё статус «Новая»."""
+    request = get_request(request_id)
+    if request is None or request["user_id"] != user_id:
+        raise AppError("Можно удалить только свою заявку.")
+    if request["status"] != "Новая":
+        raise AppError("Удалить можно только заявку со статусом «Новая».")
+    delete_request(request_id)

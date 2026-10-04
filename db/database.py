@@ -11,7 +11,6 @@ from contextlib import contextmanager
 
 DB_NAME = "tszh.db"
 
-# COALESCE(..., 0) заменяет пустой результат (NULL) нулём, если начислений ещё нет.
 DEBT_SQL = """(
     COALESCE((SELECT SUM(amount) FROM charges
               WHERE charges.apartment_id = a.apartment_id), 0)
@@ -21,47 +20,48 @@ DEBT_SQL = """(
 
 CREATE_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS hoa (
-    hoa_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    hoa_id INTEGER PRIMARY KEY AUTOINCREMENT,   -- PK: номер записи, растёт сам
+    name TEXT NOT NULL,                         -- NOT NULL: поле нельзя оставить пустым
     inn TEXT NOT NULL,
     address TEXT NOT NULL,
-    rate_per_m2 INTEGER NOT NULL CHECK (rate_per_m2 > 0)
+    rate_per_m2 INTEGER NOT NULL CHECK (rate_per_m2 > 0)  -- тариф в копейках, больше нуля
 );
 
 CREATE TABLE IF NOT EXISTS apartments (
     apartment_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    number INTEGER NOT NULL UNIQUE,
-    area REAL NOT NULL CHECK (area > 0),
+    number INTEGER NOT NULL UNIQUE,             -- UNIQUE: двух одинаковых номеров не будет
+    area REAL NOT NULL CHECK (area >= 0),       -- площадь, м2 (0 - площадь ещё не внесена)
     owner_name TEXT NOT NULL,
     owner_phone TEXT NOT NULL,
-    is_member INTEGER NOT NULL DEFAULT 0
+    is_member INTEGER NOT NULL DEFAULT 0        -- член ТСЖ: 1 - да, 0 - нет
 );
 
 CREATE TABLE IF NOT EXISTS users (
     users_id INTEGER PRIMARY KEY AUTOINCREMENT,
     login TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT NOT NULL,                -- пароль храним только в виде хеша
+    -- is_participant: 1 - жилец (участник), 0 - председатель
     is_participant INTEGER NOT NULL DEFAULT 1 CHECK (is_participant IN (0, 1)),
     full_name TEXT NOT NULL,
     phone TEXT NOT NULL,
-    apartment_id INTEGER REFERENCES apartments (apartment_id),
-    is_approved INTEGER NOT NULL DEFAULT 0
+    apartment_id INTEGER REFERENCES apartments (apartment_id),  -- FK: связь с квартирой
+    is_approved INTEGER NOT NULL DEFAULT 0      -- подтвердил ли председатель: 1 - да
 );
 
 CREATE TABLE IF NOT EXISTS charges (
     charges_id INTEGER PRIMARY KEY AUTOINCREMENT,
     apartment_id INTEGER NOT NULL REFERENCES apartments (apartment_id),
-    period TEXT NOT NULL,
-    purpose TEXT NOT NULL,
-    amount INTEGER NOT NULL CHECK (amount > 0),
-    UNIQUE (apartment_id, period, purpose)
+    period TEXT NOT NULL,                       -- месяц в виде 'ГГГГ-ММ'
+    purpose TEXT NOT NULL,                      -- за что начислено
+    amount INTEGER NOT NULL CHECK (amount > 0), -- сумма в копейках
+    UNIQUE (apartment_id, period, purpose)      -- одно и то же начисление нельзя дублировать
 );
 
 CREATE TABLE IF NOT EXISTS payment (
     payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
     apartment_id INTEGER NOT NULL REFERENCES apartments (apartment_id),
     amount INTEGER NOT NULL CHECK (amount > 0),
-    paid_at TEXT NOT NULL,
+    paid_at TEXT NOT NULL,                      -- дата оплаты 'ГГГГ-ММ-ДД ЧЧ:ММ'
     comment TEXT
 );
 
@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS requests (
     source TEXT NOT NULL CHECK (source IN ('Звонок', 'Приложение')),
     status TEXT NOT NULL DEFAULT 'Новая'
         CHECK (status IN ('Новая', 'В работе', 'Выполнена')),
-    executor TEXT,
+    executor TEXT,                              -- исполнитель (пока может быть пустым)
     created_at TEXT NOT NULL,
-    closed_at TEXT
+    closed_at TEXT                              -- дата закрытия, пока заявка открыта - пусто
 );
 """
 
@@ -112,6 +112,7 @@ def query_all(sql, params=()):
     """Выполняет SELECT и возвращает все найденные строки списком."""
     conn = connect()
     try:
+
         return conn.execute(sql, params).fetchall()
     finally:
         conn.close()

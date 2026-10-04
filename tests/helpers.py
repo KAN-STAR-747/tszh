@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+
 import unittest
 
 from db import database
@@ -13,8 +14,8 @@ def chairman_data():
         "full_name": "Иванов Иван Иванович",
         "phone": "+7 777 777 77 77",
         "login": "ivanov",
-        "password": "secret1",
-        "password2": "secret1",
+        "password": "secret12",
+        "password2": "secret12",
         "hoa_name": "ТСЖ Березка",
         "inn": "1234567890",
         "address": "г. Новосибирск, ул. Примерная, 10",

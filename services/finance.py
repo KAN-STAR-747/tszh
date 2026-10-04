@@ -19,8 +19,8 @@ def calc_charge(area, tariff):
 
 
 def get_apartments_for_charge():
-    """Возвращает id и площадь всех квартир."""
-    return db.query_all("SELECT apartment_id, area FROM apartments")
+    """Возвращает id и площадь квартир, которым можно начислять (площадь больше нуля)."""
+    return db.query_all("SELECT apartment_id, area FROM apartments WHERE area > 0")
 
 
 def charge_month(month):
@@ -57,6 +57,7 @@ def charge_month(month):
 def charge_target(purpose, amount_text, month):
     """Создаёт целевой сбор для всех квартир. Возвращает (сколько начислений, общая сумма)."""
     purpose = check.require_text(purpose, "Назначение")
+    purpose = check.check_length(purpose, check.MAX_PURPOSE, "Назначение")
     if purpose.lower() == MAINTENANCE.lower():
         raise AppError(f"Назначение «{MAINTENANCE}» занято ежемесячным начислением.")
     amount = check.rubles_to_kopecks(amount_text, "Сумма с квартиры")
@@ -83,9 +84,10 @@ def add_payment(apartment_id, amount_text, date_text, comment):
         raise AppError("Выберите квартиру.")
     amount = check.rubles_to_kopecks(amount_text, "Сумма")
     paid_at = check.parse_date(date_text, "Дата оплаты")
+    comment = check.check_length(comment, check.MAX_COMMENT, "Комментарий")  # не длиннее 50
     db.execute(
         "INSERT INTO payment (apartment_id, amount, paid_at, comment) VALUES (?, ?, ?, ?)",
-        (apartment_id, amount, paid_at, comment.strip()),
+        (apartment_id, amount, paid_at, comment),
     )
 
 
@@ -159,12 +161,59 @@ def update_payment(payment_id, amount_text, date_text, comment):
     """Изменяет сумму, дату и комментарий оплаты."""
     amount = check.rubles_to_kopecks(amount_text, "Сумма")
     paid_at = check.parse_date(date_text, "Дата оплаты")
+    comment = check.check_length(comment, check.MAX_COMMENT, "Комментарий")
     db.execute(
         "UPDATE payment SET amount = ?, paid_at = ?, comment = ? WHERE payment_id = ?",
-        (amount, paid_at, comment.strip(), payment_id),
+        (amount, paid_at, comment, payment_id),
     )
 
 
 def delete_payment(payment_id):
     """Удаляет оплату."""
     db.execute("DELETE FROM payment WHERE payment_id = ?", (payment_id,))
+
+
+def get_all_payments():
+    """Все оплаты по всем квартирам для окна «Оплаты», свежие сверху."""
+    return db.query_all(
+        "SELECT p.payment_id, a.number, p.amount, p.paid_at, p.comment "
+        "FROM payment p JOIN apartments a ON a.apartment_id = p.apartment_id "
+        "ORDER BY p.paid_at DESC, p.payment_id DESC"
+    )
+
+
+def get_target_charges():
+    """Целевые сборы для окна «Все целевые сборы»: сумма с квартиры и сколько квартир оплатило.
+
+    Считаем так: квартира гасит начисления по порядку месяцев, от старых к новым.
+    Сбор считается оплаченным квартирой, если все её оплаты покрывают начисления
+    до этого сбора включительно.
+    """
+    charges = db.query_all(
+        "SELECT charges_id, apartment_id, period, purpose, amount FROM charges "
+        "ORDER BY period, charges_id"
+    )
+    paid = {
+        row["apartment_id"]: row["total"]
+        for row in db.query_all(
+            "SELECT apartment_id, SUM(amount) AS total FROM payment GROUP BY apartment_id"
+        )
+    }
+    running = {}
+    groups = {}
+    for row in charges:
+        apartment_id = row["apartment_id"]
+        running[apartment_id] = running.get(apartment_id, 0) + row["amount"]
+        if row["purpose"] == MAINTENANCE:
+            continue
+        group = groups.setdefault(
+            (row["period"], row["purpose"]), {"amount": row["amount"], "paid": 0}
+        )
+        if running[apartment_id] <= paid.get(apartment_id, 0):
+            group["paid"] += 1
+    result = [
+        {"period": period, "purpose": purpose, "amount": group["amount"], "paid": group["paid"]}
+        for (period, purpose), group in groups.items()
+    ]
+    result.sort(key=lambda item: item["period"], reverse=True)
+    return result
