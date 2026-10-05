@@ -8,103 +8,75 @@
 Tkinter как картинки. Текст, поля ввода и таблицы - обычные средства Tkinter.
 """
 
-# ctypes - вызов функций Windows (нужен для чёткости и шрифтов)
 import ctypes
-
-# os и sys - пути к файлам
+import math
 import os
 import sys
-
-# tkinter - окна, холст, поля ввода
 import tkinter as tk
 
-# измерение ширины текста
 from tkinter import font as tkfont
-
-# Pillow - рисует скруглённые фигуры и тени как картинки
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
 
-# ======================================================================
-# ЧАСТЬ 1. Цвета, масштаб, шрифты
-# ======================================================================
-
-# Цвета макета в формате #RRGGBB
 BLUE = "#0088ff"
 BLUE_HOVER = "#0072d6"
 WHITE = "#ffffff"
 BLACK = "#000000"
-# цвета панелей и плашек
 PANEL_GRAY = "#f3f3f3"
 PANEL_BLUE = "#ebf5ff"
 NOTE_BLUE = "#9ed0ff"
 NOTE_BLUE_TEXT = "#3f6fa3"
 NOTE_RED = "#ff9e9e"
 NOTE_RED_TEXT = "#993838"
-# цвета подсветки строк таблицы
-DEBT_TINT = "#ffe1d1"  # строка с долгом
-NEW_TINT = "#fff2b8"  # новая заявка
-SELECT_TINT = "#d9e8ff"  # выбранная строка
+DEBT_TINT = "#ffe1d1"
+NEW_TINT = "#fff2b8"
+SELECT_TINT = "#d9e8ff"
 PLACEHOLDER = "#8e8e93"
 STATUS_ORANGE = "#ffa100"
 
-# Тень кнопки из Figma: (смещение x, смещение y, размытие, растяжение, цвет RGB + прозрачность)
-# Тени из Figma: (смещение x, смещение y, размытие, растяжение, (R, G, B, прозрачность))
+
 BUTTON_SHADOW = ((0, 1, 3, 0, (0, 0, 0, 0.30)), (0, 4, 8, 3, (0, 0, 0, 0.15)))
 CARD_SHADOW = ((0, 0, 18, 0, (0, 0, 0, 0.25)),)
 
-# самое большое окно макета - по нему считается масштаб
-MAX_WINDOW = (1588, 919)  # самое большое окно макета
-# K - во сколько раз увеличиваем макет на этом экране
-K = 1.0  # пикселей экрана на 1 пиксель макета
-# рисуем в 4 раза крупнее, а потом уменьшаем: края получаются гладкими
-SUPER = 4  # во сколько раз рисуем крупнее для сглаживания краёв
-# готовые картинки храним, чтобы не рисовать одно и то же снова
-_cache = {}  # готовые картинки, чтобы не рисовать одно и то же дважды
+
+MAX_WINDOW = (1588, 919)
+
+K = 1.0
+
+SUPER = 4
+_cache = {}
 
 
-# S() встречается везде: переводит пиксели макета в пиксели экрана
 def S(value):
     """Пиксели макета -> пиксели экрана."""
-    # умножаем на масштаб и округляем до целого
+
     return int(round(value * K))
 
 
 def line_width(value=1):
     """Толщина линии на экране (не меньше 1 пикселя)."""
-    # линия не тоньше 1 пикселя
     return max(1, S(value))
 
 
 def enable_high_dpi():
     """Чёткое отображение на экранах с масштабом больше 100%. Вызвать до создания окна."""
     try:
-        # говорим Windows: не растягивай окно сам, мы масштабируем по-своему
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    # не Windows или старая версия - просто пропускаем
     except (AttributeError, OSError):
         pass
 
 
 def init_scale(root):
     """Выбирает масштаб K так, чтобы самое большое окно помещалось на экран."""
-    # K - глобальная переменная модуля, меняем её здесь
     global K
-    # масштаб Windows (100%, 125%...): делим dpi на 96
     system_scale = root.winfo_fpixels("1i") / 96
-    # масштаб, при котором самое большое окно влезет по ширине
     fit_width = (root.winfo_screenwidth() - 40) / MAX_WINDOW[0]
-    # и по высоте
     fit_height = (root.winfo_screenheight() - 150) / MAX_WINDOW[1]
-    # берём наименьший из вариантов, но не больше 1,6 и не меньше 0,5
     K = max(0.5, min(system_scale, fit_width, fit_height, 1.6))
-    # картинки старого масштаба больше не нужны
     _cache.clear()
 
 
-# файлы шрифта лежат в папке fonts проекта
 FONT_FILES = ["Roboto-Light.ttf", "Roboto-Regular.ttf", "Roboto-Medium.ttf", "Roboto-Bold.ttf"]
-# соответствие «начертание Figma -> имя шрифта в Windows»
-FONT_FAMILIES = {  # начертание Figma -> (семейство для Tk, жирность)
+FONT_FAMILIES = {
     "ExtraLight": ("Roboto Light", "normal"),
     "Light": ("Roboto Light", "normal"),
     "Regular": ("Roboto", "normal"),
@@ -113,7 +85,6 @@ FONT_FAMILIES = {  # начертание Figma -> (семейство для Tk
 }
 
 
-# В exe файлы распаковываются во временную папку _MEIPASS, иначе лежат в папке проекта
 def resource_path(relative_path):
     """Путь к файлу проекта (работает и в собранном exe)."""
     base = getattr(sys, "_MEIPASS", None)
@@ -122,85 +93,62 @@ def resource_path(relative_path):
     return os.path.join(base, relative_path)
 
 
-# Подключаем шрифт Roboto, не устанавливая его в систему
 def load_fonts():
     """Подключает файлы Roboto из папки fonts на время работы программы."""
     try:
-        # функция Windows для добавления шрифта
         add_font = ctypes.windll.gdi32.AddFontResourceExW
     except AttributeError:
         return
-    # добавляем каждый файл шрифта
     for name in FONT_FILES:
         add_font(resource_path(os.path.join("fonts", name)), 0x10, 0)  # 0x10 - только для нас
 
 
-# Возвращает шрифт для Tkinter нужного размера
 def font(style, size):
     """Шрифт Tk по начертанию Figma и размеру макета. Отрицательный размер = пиксели."""
     family, weight = FONT_FAMILIES[style]
-    # минус в Tkinter означает «размер в пикселях», а не в пунктах
     pixels = -max(S(size), 1)
     return (family, pixels, "bold") if weight == "bold" else (family, pixels)
 
 
-# ======================================================================
-# ЧАСТЬ 2. Картинки: скруглённые фигуры, тени, стрелка, галочка
-# ======================================================================
-
-
-# «#0088ff» -> (0, 136, 255)
 def _rgb(color):
     color = color.lstrip("#")
     return tuple(int(color[i : i + 2], 16) for i in (0, 2, 4))
 
 
-# переводим параметры теней в пиксели экрана
 def scaled(shadows):
     """Параметры теней из пикселей макета в пиксели экрана."""
     return tuple((round(x * K), round(y * K), b * K, round(s * K), c) for x, y, b, s, c in shadows)
 
 
-# Рисуем скруглённый прямоугольник с тенью и возвращаем картинку для холста
 def shape_image(w, h, radius, fill, outline=None, outline_w=1, shadows=()):
     """Скруглённый прямоугольник с обводкой и тенями. Размеры - в пикселях экрана.
 
     Returns:
         tuple: (картинка, отступ под тень вокруг фигуры).
     """
-    # ключ кэша: одинаковые фигуры рисуем один раз
     key = (w, h, radius, fill, outline, outline_w, shadows)
     if key in _cache:
         return _cache[key]
 
-    # отступ вокруг фигуры, чтобы поместилась тень
     pad = max([int(b * 1.6 + s + max(abs(x), abs(y)) + 2) for x, y, b, s, _ in shadows] or [0])
-    # размер картинки в «крупном» масштабе
     size = ((w + 2 * pad) * SUPER, (h + 2 * pad) * SUPER)
-    # пустая прозрачная картинка
     image = Image.new("RGBA", size, (0, 0, 0, 0))
 
-    # для каждой тени рисуем размытый силуэт
     for x, y, blur, spread, (r, g, b, alpha) in shadows:  # тени: размытая маска
-        # маска - чёрно-белая картинка, белое = тень
         mask = Image.new("L", size, 0)
         box = ((pad + x - spread) * SUPER, (pad + y - spread) * SUPER)
         box += ((pad + x + w + spread) * SUPER - 1, (pad + y + h + spread) * SUPER - 1)
         ImageDraw.Draw(mask).rounded_rectangle(
             box, (radius + spread) * SUPER, fill=int(255 * alpha)
         )
-        # размываем маску: получается мягкая тень
         mask = mask.filter(ImageFilter.GaussianBlur(max(blur, 0.1) * SUPER / 2))
         layer = Image.new("RGBA", size, (r, g, b, 0))
         layer.putalpha(mask)
-        # накладываем тень на картинку
         image = Image.alpha_composite(image, layer)
 
-    # теперь рисуем саму фигуру
     draw = ImageDraw.Draw(image)
     box = (pad * SUPER, pad * SUPER, (pad + w) * SUPER - 1, (pad + h) * SUPER - 1)
-    # есть обводка: сначала фигура цвета обводки, поверх неё чуть меньшая с заливкой
-    if outline:  # сначала фигура цвета обводки, поверх неё чуть меньшая фигура заливки
+    if outline:
         draw.rounded_rectangle(box, radius * SUPER, fill=_rgb(outline))
         d = outline_w * SUPER
         inner = (box[0] + d, box[1] + d, box[2] - d, box[3] - d)
@@ -461,10 +409,25 @@ def _chip_images(w, h):
 class EntryBox:
     """Однострочное поле ввода в скруглённой рамке (в Figma - «Assistive chip»)."""
 
-    def __init__(self, board, x, y, w, h, show="", text="", placeholder="", size=12):
-        """show - символ вместо букв (для пароля), placeholder - серая подсказка."""
+    def __init__(
+        self,
+        board,
+        x,
+        y,
+        w,
+        h,
+        show="",
+        text="",
+        placeholder="",
+        size=12,
+        max_length=None,
+        readonly=False,
+    ):
+        """show - символ вместо букв (для пароля), placeholder - серая подсказка,
+        max_length - наибольшая длина текста, readonly - поле нельзя менять."""
         # запоминаем параметры
         self.board, self.placeholder, self.show_char = board, placeholder, show
+        self.max_length = max_length
         # показана ли серая подсказка вместо текста
         self.showing_placeholder = False
         self.normal, self.focused, pad = _chip_images(w, h)
@@ -494,6 +457,10 @@ class EntryBox:
             tags=(board.layer,),
         )
         board.add_widget(self.entry)
+        if max_length:
+            # проверка при каждом нажатии клавиши: длиннее max_length ввести нельзя
+            check = (board.register(self._allowed), "%P")
+            self.entry.configure(validate="key", validatecommand=check)
         # курсор попал в поле - синяя рамка; ушёл - обычная
         self.entry.bind("<FocusIn>", self._focus_in)
         self.entry.bind("<FocusOut>", self._focus_out)
@@ -501,6 +468,17 @@ class EntryBox:
             self.entry.insert(0, text)
         else:
             self._show_placeholder()
+        if readonly:
+            self.set_readonly(True)
+
+    # Можно ли записать такой текст: подсказка не считается, остальное не длиннее max_length
+    def _allowed(self, new_text):
+        return self.showing_placeholder or len(new_text) <= self.max_length
+
+    # Запретить или разрешить менять текст (поле «Логин (не изменяется)»)
+    def set_readonly(self, flag):
+        state = "readonly" if flag else "normal"
+        self.entry.configure(state=state, readonlybackground=WHITE)
 
     # серая подсказка, пока поле пустое
     def _show_placeholder(self):
@@ -530,9 +508,11 @@ class EntryBox:
     def set(self, text):
         """Заменяет текст в поле."""
         self.showing_placeholder = False
-        self.entry.configure(fg=BLACK, show=self.show_char)
+        state = str(self.entry.cget("state"))  # запоминаем, было ли поле только для чтения
+        self.entry.configure(state="normal", fg=BLACK, show=self.show_char)
         self.entry.delete(0, "end")
         self.entry.insert(0, text)
+        self.entry.configure(state=state)
 
     def clear(self):
         """Очищает поле."""
@@ -559,7 +539,8 @@ class EntryBox:
 class TextBox:
     """Многострочное поле (описание заявки) в такой же рамке."""
 
-    def __init__(self, board, x, y, w, h, size=12):
+    def __init__(self, board, x, y, w, h, size=12, max_length=None):
+        self.max_length = max_length
         self.normal, self.focused, pad = _chip_images(w, h)
         bg_id = board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer,)
@@ -586,6 +567,15 @@ class TextBox:
         board.add_widget(self.text)
         self.text.bind("<FocusIn>", lambda e: board.itemconfigure(bg_id, image=self.focused))
         self.text.bind("<FocusOut>", lambda e: board.itemconfigure(bg_id, image=self.normal))
+        if max_length:
+            # лишние символы (набранные или вставленные) сразу отрезаем
+            self.text.bind("<KeyRelease>", self._cut)
+            self.text.bind("<<Paste>>", lambda e: self.text.after(1, self._cut))
+
+    # Отрезает текст, который длиннее max_length
+    def _cut(self, event=None):
+        if len(self.text.get("1.0", "end-1c")) > self.max_length:
+            self.text.delete(f"1.0+{self.max_length}c", "end")
 
     def get(self):
         """Введённый текст."""
@@ -781,6 +771,197 @@ class RadioGroup:
 
 
 # ======================================================================
+# ЧАСТЬ 7А. Прокручиваемый текст, круглые кнопки, логотип
+# ======================================================================
+
+
+# Текстовое поле с полосой прокрутки без рамки: описание заявки в карточке
+class ScrollText:
+    """Многострочный текст с прокруткой. Длинный текст листается колесом мыши или полосой."""
+
+    def __init__(self, board, x, y, w, h, text="", size=20, style="Light", max_length=None):
+        self.max_length = max_length
+        # обычное многострочное поле Tkinter: без рамки, фон белый (как карточка под ним)
+        self.text = tk.Text(
+            board,
+            bd=0,
+            highlightthickness=0,
+            font=font(style, size),
+            bg=WHITE,
+            fg=BLACK,
+            wrap="word",
+            insertbackground=BLACK,
+            padx=0,
+            pady=0,
+        )
+        # полоса прокрутки справа; yscrollcommand заставляет её двигаться вместе с текстом
+        self.scroll = tk.Scrollbar(board, orient="vertical", command=self.text.yview)
+        self.text.configure(yscrollcommand=self.scroll.set)
+        bar = S(16)  # ширина полосы
+        board.create_window(
+            S(x),
+            S(y),
+            window=self.text,
+            anchor="nw",
+            width=S(w) - bar - S(4),
+            height=S(h),
+            tags=(board.layer,),
+        )
+        board.create_window(
+            S(x + w) - bar,
+            S(y),
+            window=self.scroll,
+            anchor="nw",
+            width=bar,
+            height=S(h),
+            tags=(board.layer,),
+        )
+        board.add_widget(self.text)
+        board.add_widget(self.scroll)
+        if max_length:
+            # лишние символы (набранные или вставленные) сразу отрезаем
+            self.text.bind("<KeyRelease>", self._cut)
+            self.text.bind("<<Paste>>", lambda e: self.text.after(1, self._cut))
+        self.set(text)
+
+    # Отрезает текст, который длиннее max_length
+    def _cut(self, event=None):
+        if len(self.text.get("1.0", "end-1c")) > self.max_length:
+            self.text.delete(f"1.0+{self.max_length}c", "end")
+
+    def set(self, text):
+        """Записывает текст в поле."""
+        state = str(self.text.cget("state"))  # запоминаем, было ли поле только для чтения
+        self.text.configure(state="normal")
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", text)
+        self.text.configure(state=state)
+
+    def get(self):
+        """Текст поля."""
+        return self.text.get("1.0", "end").strip()
+
+    def set_readonly(self, flag):
+        """Запретить или разрешить менять текст (выполненную заявку менять нельзя)."""
+        self.text.configure(state="disabled" if flag else "normal")
+
+
+# Рисуем значок для круглой кнопки: шестерёнка или корзина
+def icon_image(kind, px):
+    """Картинка значка размером px на px: "gear" (шестерёнка) или "trash" (корзина)."""
+    key = ("icon", kind, px)
+    if key not in _cache:
+        big = px * SUPER  # рисуем крупнее, потом уменьшаем - края получаются гладкими
+        image = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        unit = big / 24  # размер значка условно 24 клетки
+        if kind == "gear":
+            center = big / 2
+            points = []
+            for tooth in range(8):  # восемь зубцов через каждые 45 градусов
+                angle = tooth * math.pi / 4
+                # у зубца четыре точки: основание слева, верх слева, верх справа, основание справа
+                for shift, radius in ((-0.21, 8), (-0.12, 10.5), (0.12, 10.5), (0.21, 8)):
+                    a = angle + shift
+                    points.append(
+                        (center + math.cos(a) * radius * unit, center + math.sin(a) * radius * unit)
+                    )
+            draw.polygon(points, fill=(0, 0, 0, 255))
+            hole = 3.6 * unit  # отверстие посередине
+            draw.ellipse(
+                (center - hole, center - hole, center + hole, center + hole), fill=(0, 0, 0, 0)
+            )
+        else:  # корзина
+            black = (0, 0, 0, 255)
+            draw.rounded_rectangle(
+                (4 * unit, 6 * unit, 20 * unit, 8.2 * unit), unit, fill=black
+            )  # крышка
+            draw.rounded_rectangle(
+                (9 * unit, 3.4 * unit, 15 * unit, 6.4 * unit), unit, fill=black
+            )  # ручка
+            draw.polygon(  # корпус немного сужается книзу
+                [
+                    (5.8 * unit, 9.2 * unit),
+                    (18.2 * unit, 9.2 * unit),
+                    (17 * unit, 20.8 * unit),
+                    (7 * unit, 20.8 * unit),
+                ],
+                fill=black,
+            )
+            for line_x in (10, 12, 14):  # три светлые полоски на корпусе
+                draw.line(
+                    (line_x * unit, 11.4 * unit, line_x * unit, 18.4 * unit),
+                    fill=(0, 0, 0, 0),
+                    width=int(1.3 * unit),
+                )
+        _cache[key] = ImageTk.PhotoImage(image.resize((px, px), Image.LANCZOS))
+    return _cache[key]
+
+
+# Круглая белая кнопка с тенью и значком внутри (FAB в Figma)
+class IconButton:
+    """Круглая кнопка со значком. kind: "gear" (настройки) или "trash" (удалить)."""
+
+    def __init__(self, board, x, y, kind, command, size=40):
+        px = S(size)
+        shadow = scaled(BUTTON_SHADOW)
+        # две картинки круга: обычная и чуть темнее (когда мышь над кнопкой); радиус = половина
+        self.normal, pad = shape_image(px, px, px // 2, WHITE, None, 1, shadow)
+        self.hover, _ = shape_image(px, px, px // 2, "#ececec", None, 1, shadow)
+        self.board, self.command = board, command
+        tag = board.new_tag("icon")
+        self.image_id = board.create_image(
+            S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer, tag)
+        )
+        icon_size = S(24)
+        offset = (px - icon_size) // 2  # значок по центру круга
+        board.create_image(
+            S(x) + offset,
+            S(y) + offset,
+            anchor="nw",
+            image=icon_image(kind, icon_size),
+            tags=(board.layer, tag),
+        )
+        board.hover_cursor(tag)
+        board.tag_bind(
+            tag, "<Enter>", lambda e: board.itemconfigure(self.image_id, image=self.hover), "+"
+        )
+        board.tag_bind(
+            tag, "<Leave>", lambda e: board.itemconfigure(self.image_id, image=self.normal), "+"
+        )
+        board.tag_bind(tag, "<ButtonRelease-1>", lambda e: self.command())
+
+
+# Логотип приложения: файл assets/logo.png нужного размера
+def logo_image(size):
+    """Картинка логотипа size на size пикселей экрана (или None, если файла нет)."""
+    key = ("logo", size)
+    if key not in _cache:
+        path = resource_path(os.path.join("assets", "logo.png"))
+        if not os.path.exists(path):
+            return None
+        picture = Image.open(path).convert("RGBA").resize((size, size), Image.LANCZOS)
+        _cache[key] = ImageTk.PhotoImage(picture)
+    return _cache[key]
+
+
+def logo(board, x, y, size):
+    """Кладёт логотип на холст: x, y, size - в пикселях макета."""
+    picture = logo_image(S(size))
+    if picture is None:  # нет файла - окно просто работает без логотипа
+        return None
+    return board.create_image(S(x), S(y), anchor="nw", image=picture, tags=(board.layer,))
+
+
+# Шапка окна: логотип, название ТСЖ и адрес. Обе строки начинаются с одной линии
+def header(board, title, subtitle, y=20):
+    """Рисует логотип слева и рядом название и адрес ТСЖ, прижатые к одному левому краю."""
+    logo(board, 26, y - 2, 64)
+    board.label(104, y, 800, title, "Bold", 32, align="left")
+    board.label(104, y + 43, 800, subtitle, "ExtraLight", 20, align="left")
+
+
+# ======================================================================
 # ЧАСТЬ 7. Таблица
 # ======================================================================
 
@@ -803,14 +984,26 @@ class Table:
     щелчок по строке выбирает её.
     """
 
-    # высота от верха панели до линии под заголовком
-    HEADER_LINE = 54  # от верха панели до линии под заголовком
-    # высота строки
+    # обычные размеры: высота от верха панели до линии под заголовком и высота строки
+    HEADER_LINE = 54
     ROW_HEIGHT = 53
 
-    def __init__(self, board, x, y, w, h, columns, on_select=None):
+    def __init__(
+        self,
+        board,
+        x,
+        y,
+        w,
+        h,
+        columns,
+        on_select=None,
+        header_line=None,
+        row_height=None,
+        header_top=10,
+    ):
         """columns: список словарей title, cx (центр столбца от левого края панели),
-        style, size (шрифт значений), width (наибольшая ширина текста)."""
+        style, size (шрифт значений), width (наибольшая ширина текста).
+        header_line, row_height, header_top - размеры, если таблица не обычная (окна-списки)."""
         self.board, self.on_select = board, on_select
         self.x, self.y, self.w, self.h, self.columns = x, y, w, h, columns
         # rows - строки, offset - с какой строки показываем (прокрутка)
@@ -818,8 +1011,11 @@ class Table:
         # по какому столбцу отсортировано и в какую сторону
         self.sort_column, self.sort_reverse = None, False
         self.tag, self.layer = board.new_tag("table"), board.layer
+        # размеры этой таблицы: свои или обычные
+        self.header_line = header_line or self.HEADER_LINE
+        self.row_height = row_height or self.ROW_HEIGHT
         # сколько строк помещается в панель
-        self.visible = (h - self.HEADER_LINE - 4) // self.ROW_HEIGHT
+        self.visible = (h - self.header_line - 4) // self.row_height
 
         # серая скруглённая панель
         board.shape(x, y, w, h, 22, PANEL_GRAY)
@@ -828,7 +1024,14 @@ class Table:
         for number, column in enumerate(columns):
             tag = f"{self.tag}head{number}"
             item = board.centered(
-                x + column["cx"] - 90, y + 10, 180, 29, column["title"], "Regular", 24, tags=(tag,)
+                x + column["cx"] - 90,
+                y + header_top,
+                180,
+                29,
+                column["title"],
+                "Regular",
+                24,
+                tags=(tag,),
             )
             self.headers.append(item)
             board.hover_cursor(tag)
@@ -879,7 +1082,7 @@ class Table:
     # Перерисовка: стираем строки и рисуем только видимые
     def redraw(self):
         """Перерисовывает видимые строки."""
-        board, top = self.board, self.y + self.HEADER_LINE
+        board, top = self.board, self.y + self.header_line
         # удаляем старые строки
         board.delete(self.tag)
         # цикл по видимым строкам
@@ -888,14 +1091,14 @@ class Table:
             if index >= len(self.rows):
                 break
             key, values, tint = self.rows[index]
-            row_top = top + position * self.ROW_HEIGHT
+            row_top = top + position * self.row_height
             tags = (self.layer, self.tag, self.tag + "row", f"row{index}")
             # подложка нужна, чтобы Tk ловил щелчки по пустому месту строки
             board.create_rectangle(
                 S(self.x + 1),
                 S(row_top),
                 S(self.x + self.w - 1),
-                S(row_top + self.ROW_HEIGHT),
+                S(row_top + self.row_height),
                 fill=PANEL_GRAY,
                 outline="",
                 tags=tags,
@@ -907,7 +1110,7 @@ class Table:
                     S(self.x + 12),
                     S(row_top + 2),
                     S(self.x + self.w - 12),
-                    S(row_top + self.ROW_HEIGHT - 2),
+                    S(row_top + self.row_height - 2),
                     fill=fill,
                     outline="",
                     tags=tags,
@@ -920,7 +1123,7 @@ class Table:
                 text = board.fit_text(str(value), column["style"], column["size"], column["width"])
                 board.create_text(
                     S(self.x + column["cx"]),
-                    S(row_top + self.ROW_HEIGHT / 2),
+                    S(row_top + self.row_height / 2),
                     text=text,
                     font=font(column["style"], column["size"]),
                     tags=tags,
@@ -932,9 +1135,9 @@ class Table:
     def _draw_scrollbar(self):
         if len(self.rows) <= self.visible:
             return
-        track = self.h - self.HEADER_LINE - 24
+        track = self.h - self.header_line - 24
         thumb = max(30, track * self.visible / len(self.rows))
-        start = self.y + self.HEADER_LINE + 8
+        start = self.y + self.header_line + 8
         start += (track - thumb) * self.offset / max(1, len(self.rows) - self.visible)
         x = S(self.x + self.w - 9)
         self.board.create_line(

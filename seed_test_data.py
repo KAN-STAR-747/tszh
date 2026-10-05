@@ -54,6 +54,7 @@ def fill():
 
     for month in ("2026-06", "2026-07", "2026-08"):
         finance.charge_month(month)
+    finance.charge_target("Ремонт подъезда", "1500", "2026-08")
     rows = apartments.get_apartments()
     tariff = 3250
     for row in rows[:6]:
@@ -62,6 +63,9 @@ def fill():
         amount = validation.kopecks_to_text(finance.calc_charge(row["area"], tariff))
         for date in ("10.06.2026", "12.07.2026", "15.08.2026"):
             finance.add_payment(row["apartment_id"], amount, date, "Перевод")
+    for row in rows:
+        if row["number"] in (1, 3, 4, 5):
+            finance.add_payment(row["apartment_id"], "1500", "20.08.2026", "Ремонт подъезда")
 
     auth.register_resident(
         {
