@@ -20,15 +20,17 @@ class ChairmanEditScreen:
         self.tab = tab
         info = hoa.get_hoa()
 
+        # заголовок и подсказка
         board.label(39, 64, 525, "Редактирование данных ТСЖ", "Bold", 32)
         board.label(52, 111, 713, "Измените данные председателя и данные ТСЖ.", "ExtraLight", 20)
+        # три синие панели: председатель, логин с паролем, данные ТСЖ
         board.shape(77, 166, 807, 134, 15, kit.PANEL_BLUE)
         board.shape(76, 320, 807, 157, 15, kit.PANEL_BLUE)
         board.shape(76, 496, 807, 322, 15, kit.PANEL_BLUE)
         board.label(43, 176, 304, "Председатель", "Bold", 24)
         board.label(36, 503, 316, "Данные ТСЖ", "Bold", 24)
 
-        add = dialogs.add_field
+        add = dialogs.add_field  # короткое имя для функции «подпись + поле»
         self.fields = {
             "full_name": add(board, 77, 219, 111, "ФИО", 105, 248, 355, text=user["full_name"]),
             "phone": add(
@@ -51,13 +53,15 @@ class ChairmanEditScreen:
             ),
             "address": add(board, 76, 696, 158, "Адрес дома", 104, 725, 738, text=info["address"]),
         }
+        # логин и пароль менять нельзя: поля только для чтения (пароль - тот, что введён при входе)
         login = add(board, 77, 318, 248, "Логин (не изменяется)", 105, 347, 738, text=user["login"])
         login.set_readonly(True)
         password = add(
-            board, 77, 394, 256, "Пароль (не изменяется)", 105, 423, 738, text="********"
+            board, 77, 394, 256, "Пароль (не изменяется)", 105, 423, 738, text=app.session_password
         )
         password.set_readonly(True)
 
+        # «Отмена» возвращает в главное окно, «Сохранить» записывает изменения
         kit.Button(board, 605, 850, 119, 35, "Отмена", self.cancel, "plain")
         kit.Button(board, 742, 850, 142, 35, "Сохранить", self.save)
         self.fields["full_name"].focus()
@@ -75,6 +79,7 @@ class ChairmanEditScreen:
             dialogs.show_error(self.board, str(error))
             return
         dialogs.show_info(self.board, "Данные сохранены.")
+        # в главное окно возвращаемся с обновлёнными данными (в шапке новое ФИО)
         self.app.show_main(auth.get_user(self.user["users_id"]), self.tab)
 
 
@@ -89,6 +94,7 @@ class ResidentEditScreen:
         self.board = board
         self.user = user
 
+        # заголовок в две строки и подсказка
         board.label(62, 15, 289, "Редактирование\nданных жильца", "Bold", 32)
         board.label(48, 111, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
 
@@ -99,9 +105,12 @@ class ResidentEditScreen:
                 board, 68, 276, 111, "Телефон", 90, 305, 355, text=user["phone"], max_length=20
             ),
         }
+        # логин и пароль менять нельзя
         login = add(board, 62, 356, 240, "Логин (не изменяется)", 90, 385, 355, text=user["login"])
         login.set_readonly(True)
-        password = add(board, 62, 429, 254, "Пароль (не изменяется)", 90, 458, 355, text="********")
+        password = add(
+            board, 62, 429, 254, "Пароль (не изменяется)", 90, 458, 355, text=app.session_password
+        )
         password.set_readonly(True)
 
         kit.Button(board, 180, 542, 119, 35, "Отмена", self.cancel, "plain")
