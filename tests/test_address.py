@@ -35,7 +35,7 @@ class AddressServiceTests(unittest.TestCase):
         self.assertTrue(prompt.endswith("Ввод: Одоевского 1\nОтвет:"))
         self.assertIn("город Новосибирск", prompt)
         self.assertIn("Новосибирская область", prompt)
-        self.assertIn("Алматы", prompt)  # пример с другой страной: умолчания не навязываются
+        self.assertIn("Алматы", prompt)
 
     def test_answer_validation(self):
         self.assertTrue(address.is_valid(FULL))
@@ -71,7 +71,6 @@ class AddressServiceTests(unittest.TestCase):
 class AddressQueueTests(BaseTest):
     """Регистрация председателя: адрес оформляется сразу или ждёт интернета в очереди."""
 
-    # BaseTest подменяет normalize тождественной функцией; здесь нужна настоящая подмена
     def online(self, answer=FULL):
         return mock.patch.object(address, "normalize", side_effect=lambda raw: answer)
 
@@ -90,11 +89,10 @@ class AddressQueueTests(BaseTest):
         with self.offline():
             queued = auth.register_chairman(with_address("Одоевского 1"))
         self.assertTrue(queued)
-        # пока интернета нет, в базе лежит введённый текст, очередь запомнила его
         self.assertEqual(hoa.get_hoa()["address"], "Одоевского 1")
         self.assertTrue(hoa.has_pending_address())
         with self.offline():
-            self.assertFalse(hoa.resolve_pending_address())  # связи всё ещё нет
+            self.assertFalse(hoa.resolve_pending_address())
         self.assertEqual(hoa.get_hoa()["address"], "Одоевского 1")
 
     def test_full_address_is_substituted_when_internet_appears(self):
@@ -109,14 +107,12 @@ class AddressQueueTests(BaseTest):
     def test_queue_survives_restart(self):
         with self.offline():
             auth.register_chairman(with_address("Одоевского 1"))
-        # «перезапуск»: очередь хранится в файле, поэтому адрес по-прежнему ждёт
         self.assertTrue(os.path.exists(self.queue_file))
         self.assertEqual(address.queue_get(), "Одоевского 1")
 
     def test_changed_address_is_not_overwritten_by_old_queue(self):
         with self.offline():
             auth.register_chairman(with_address("Одоевского 1"))
-        # председатель успел сам изменить адрес: старый запрос ничего не затирает
         with self.online("Другой адрес, дом 5"):
             hoa.update_hoa(
                 {

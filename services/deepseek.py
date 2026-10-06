@@ -5,7 +5,7 @@ import urllib.request
 
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-chat"
-TIMEOUT = 20  # секунд на ответ сервиса
+TIMEOUT = 20
 
 
 def ask(api_key, prompt, temperature, max_tokens):
@@ -17,7 +17,7 @@ def ask(api_key, prompt, temperature, max_tokens):
         {
             "model": MODEL,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature,  # выше значение - более случайный ответ
+            "temperature": temperature,
             "max_tokens": max_tokens,
         }
     ).encode("utf-8")

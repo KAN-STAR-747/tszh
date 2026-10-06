@@ -26,27 +26,23 @@ def resident_data(
 class OwnerTest(BaseTest):
     """Кто такой собственник и когда вход разрешается без подтверждения."""
 
-    # Перед каждым тестом: председатель и квартира 1 (собственник Петров Пётр Петрович)
     def setUp(self):
         super().setUp()
         auth.register_chairman(chairman_data())
         apartments.save_apartment(apartment_data("1"))
 
-    # Совпали фамилия и телефон: это собственник, подтверждение председателя не нужно
     def test_owner_is_approved_at_once(self):
         data = resident_data("petrov@example.com", "Петров Пётр Петрович", "+79990001122")
         self.assertTrue(auth.register_resident(data))
         user = auth.login_user("petrov@example.com", "pass1234")
         self.assertTrue(auth.is_owner(user))
 
-    # В реестре телефон +79990001122; жилец вводит его с «8» и пробелами - это тот же номер
     def test_phone_8_and_plus7_are_same(self):
         data = resident_data("petrov@example.com", "Петров Пётр Петрович", "8 999 000 11 22")
         self.assertTrue(auth.register_resident(data))
         user = auth.login_user("petrov@example.com", "pass1234")
-        self.assertEqual(user["phone"], "89990001122")  # пробелы в базе не сохраняются
+        self.assertEqual(user["phone"], "89990001122")
 
-    # Телефон собственника в реестре записан с «8», жилец вводит его с «+7»
     def test_plus7_matches_8(self):
         apartments.save_apartment(
             {
@@ -58,7 +54,6 @@ class OwnerTest(BaseTest):
         data = resident_data("sidorov@example.com", "Сидоров Сергей", "+7 913 555 44 33", "2")
         self.assertTrue(auth.register_resident(data))
 
-    # Другая фамилия: это не собственник, нужно подтверждение, а в кабинете виден собственник
     def test_other_person_waits_for_chairman(self):
         self.assertFalse(auth.register_resident(resident_data()))
         with self.assertRaises(AppError):
@@ -70,7 +65,6 @@ class OwnerTest(BaseTest):
         owner = apartments.get_apartment(user["apartment_id"])["owner_name"]
         self.assertEqual(owner, "Петров Пётр Петрович")
 
-    # Квартиры нет в реестре: она создаётся, жилец становится собственником после подтверждения
     def test_new_apartment_owner_by_registration(self):
         self.assertFalse(auth.register_resident(resident_data(number="5")))
         apartment = apartments.get_apartment_by_number(5)
@@ -79,18 +73,15 @@ class OwnerTest(BaseTest):
         user = auth.login_user("smirnov@example.com", "pass1234")
         self.assertTrue(auth.is_owner(user))
 
-    # Если председатель отклонил жильца, созданная для него квартира тоже удаляется
     def test_reject_removes_new_apartment(self):
         auth.register_resident(resident_data(number="5"))
         auth.reject_resident(auth.get_pending_residents()[0]["users_id"])
         self.assertIsNone(apartments.get_apartment_by_number(5))
 
-    # Квартира без площади не участвует в начислениях
     def test_zero_area_apartment_not_charged(self):
         auth.register_resident(resident_data(number="5"))
         self.assertEqual(finance.charge_month("2026-09"), 1)
 
-    # Собственник меняет телефон: он остаётся собственником, запись о квартире меняется вместе
     def test_owner_profile_change_keeps_ownership(self):
         data = resident_data("petrov@example.com", "Петров Пётр Петрович", "+79990001122")
         auth.register_resident(data)
@@ -99,14 +90,12 @@ class OwnerTest(BaseTest):
         changed = auth.login_user("petrov@example.com", "pass1234")
         self.assertTrue(auth.is_owner(changed))
 
-    # Занятый логин не оставляет следов: квартира для такой регистрации не создаётся
     def test_duplicate_login_does_not_create_apartment(self):
         auth.register_resident(resident_data(number="5"))
         with self.assertRaises(AppError):
             auth.register_resident(resident_data(number="6"))
         self.assertIsNone(apartments.get_apartment_by_number(6))
 
-    # В окне «Жильцы» видны только подтверждённые жильцы
     def test_residents_list(self):
         auth.register_resident(resident_data("petrov@example.com", "Петров Пётр", "+79990001122"))
         auth.register_resident(resident_data("smirnov@example.com"))
@@ -114,7 +103,6 @@ class OwnerTest(BaseTest):
         self.assertEqual(len(residents), 1)
         self.assertEqual(residents[0]["number"], 1)
 
-    # У жильца виден телефон председателя
     def test_chairman_contacts(self):
         chairman = auth.get_chairman()
         self.assertEqual(chairman["phone"], "+77777777777")
@@ -135,10 +123,10 @@ class ChairmanEditTest(BaseTest):
             "rate": "40",
         }
         auth.update_chairman(user_id, data)
-        self.assertEqual(auth.get_user(user_id)["phone"], "89991234567")  # пробелы убраны
+        self.assertEqual(auth.get_user(user_id)["phone"], "89991234567")
         self.assertEqual(hoa.get_hoa()["name"], 'ТСЖ "Новое"')
         self.assertEqual(hoa.get_tariff(), 4000)
-        data["inn"] = "123"  # неверный ИНН - ничего не сохраняется
+        data["inn"] = "123"
         with self.assertRaises(AppError):
             auth.update_chairman(user_id, data)
 
@@ -146,7 +134,6 @@ class ChairmanEditTest(BaseTest):
 class RequestEditTest(BaseTest):
     """Длина полей, изменение и удаление заявок."""
 
-    # Перед каждым тестом: председатель, квартира 1 и жилец в ней
     def setUp(self):
         super().setUp()
         auth.register_chairman(chairman_data())
@@ -156,10 +143,9 @@ class RequestEditTest(BaseTest):
         auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
         self.resident = auth.login_user("smirnov@example.com", "pass1234")
 
-    # Тема - до 50 символов, описание - до 250, исполнитель - до 25
     def test_length_limits(self):
         create = requests_service.create_request
-        create(self.chairman_id, None, "т" * 50, "о" * 250, "Звонок", "и" * 25)  # ровно по границе
+        create(self.chairman_id, None, "т" * 50, "о" * 250, "Звонок", "и" * 25)
         with self.assertRaises(AppError):
             create(self.chairman_id, None, "т" * 51, "", "Звонок")
         with self.assertRaises(AppError):
@@ -167,7 +153,6 @@ class RequestEditTest(BaseTest):
         with self.assertRaises(AppError):
             create(self.chairman_id, None, "Тема", "", "Звонок", "и" * 26)
 
-    # Председатель меняет описание и исполнителя
     def test_update_request(self):
         request_id = requests_service.create_request(self.chairman_id, None, "Лифт", "", "Звонок")
         requests_service.update_request(request_id, "Новое описание", "ООО Сервис")
@@ -175,7 +160,6 @@ class RequestEditTest(BaseTest):
         self.assertEqual(request["description"], "Новое описание")
         self.assertEqual(request["executor"], "ООО Сервис")
 
-    # Выполненную заявку изменять нельзя
     def test_completed_request_is_read_only(self):
         request_id = requests_service.create_request(self.chairman_id, None, "Лифт", "", "Звонок")
         requests_service.move_to_next_status(request_id)
@@ -183,7 +167,6 @@ class RequestEditTest(BaseTest):
         with self.assertRaises(AppError):
             requests_service.update_request(request_id, "Другое", "Другой")
 
-    # Жилец удаляет свою новую заявку
     def test_resident_deletes_new_request(self):
         apartment_id = self.resident["apartment_id"]
         request_id = requests_service.create_request(
@@ -192,12 +175,11 @@ class RequestEditTest(BaseTest):
         requests_service.delete_own_request(self.resident["users_id"], request_id)
         self.assertIsNone(requests_service.get_request(request_id))
 
-    # Заявку «В работе» жилец удалить не может, как и чужую
     def test_resident_cannot_delete_foreign_or_taken_request(self):
         request_id = requests_service.create_request(
             self.resident["users_id"], None, "Кран", "", "Приложение"
         )
-        requests_service.move_to_next_status(request_id)  # теперь «В работе»
+        requests_service.move_to_next_status(request_id)
         with self.assertRaises(AppError):
             requests_service.delete_own_request(self.resident["users_id"], request_id)
         foreign_id = requests_service.create_request(self.chairman_id, None, "Лифт", "", "Звонок")
@@ -215,7 +197,6 @@ class FinanceEditTest(BaseTest):
         apartments.save_apartment(apartment_data("2", "30"))
         self.ids = [row["apartment_id"] for row in apartments.get_apartments()]
 
-    # Назначение сбора - до 50 символов, комментарий оплаты - до 50
     def test_length_limits(self):
         finance.charge_target("н" * 50, "100", "2026-10")
         with self.assertRaises(AppError):
@@ -224,7 +205,6 @@ class FinanceEditTest(BaseTest):
         with self.assertRaises(AppError):
             finance.add_payment(self.ids[0], "10", "01.10.2026", "к" * 51)
 
-    # В окне «Оплаты» видны оплаты всех квартир, свежие сверху
     def test_all_payments(self):
         finance.add_payment(self.ids[0], "100", "01.10.2026", "Первая")
         finance.add_payment(self.ids[1], "200", "05.10.2026", "Вторая")
@@ -232,16 +212,14 @@ class FinanceEditTest(BaseTest):
         self.assertEqual([p["comment"] for p in payments], ["Вторая", "Первая"])
         self.assertEqual(payments[0]["number"], 2)
 
-    # В окне «Все целевые сборы» считаем, сколько квартир оплатило сбор
     def test_target_charges_paid_count(self):
         finance.charge_target("На лампочки", "1500", "2026-10")
-        finance.add_payment(self.ids[0], "1500", "02.10.2026", "")  # квартира 1 оплатила
+        finance.add_payment(self.ids[0], "1500", "02.10.2026", "")
         rows = finance.get_target_charges()
         self.assertEqual(len(rows), 1)
         self.assertEqual((rows[0]["purpose"], rows[0]["amount"]), ("На лампочки", 150000))
-        self.assertEqual(rows[0]["paid"], 1)  # из двух квартир оплатила одна
+        self.assertEqual(rows[0]["paid"], 1)
 
-    # Ежемесячное начисление «Содержание» в целевые сборы не попадает
     def test_maintenance_is_not_target_charge(self):
         finance.charge_month("2026-09")
         self.assertEqual(finance.get_target_charges(), [])
@@ -273,14 +251,13 @@ class RecoveryTests(BaseTest):
             auth.login_user("ivanov@example.com", "secret12")
 
     def test_resident_gets_new_password_by_email(self):
-        send = self.recover("Smirnov@Example.com", False)  # регистр почты не важен
+        send = self.recover("Smirnov@Example.com", False)
         send.assert_called_once_with("smirnov@example.com", "Ab12Cd34")
         self.assertEqual(auth.login_user("smirnov@example.com", "Ab12Cd34")["is_participant"], 1)
         with self.assertRaises(AppError):
             auth.login_user("smirnov@example.com", "pass1234")
 
     def test_unknown_or_wrong_role_is_rejected(self):
-        # такой почты нет; почта жильца при выборе «председатель»; почта председателя у «жильца»
         for login, chairman in (
             ("nobody@example.com", False),
             ("smirnov@example.com", True),
@@ -301,7 +278,6 @@ class RecoveryTests(BaseTest):
         ), mock.patch.object(mailer, "send_password", side_effect=AppError("Не отправилось")):
             with self.assertRaises(AppError):
                 auth.recover_account("smirnov@example.com", False)
-        # письмо не ушло, поэтому старый пароль остался рабочим, а новый - нет
         self.assertEqual(auth.login_user("smirnov@example.com", "pass1234")["is_participant"], 1)
         with self.assertRaises(AppError):
             auth.login_user("smirnov@example.com", "Ab12Cd34")
@@ -346,9 +322,9 @@ class PasswordGeneratorTests(unittest.TestCase):
 
 
 class MailerTests(unittest.TestCase):
-    """Письмо уходит через SMTP (с запасным портом) или через Brevo; без настроек - ошибка."""
+    """Письмо уходит через SMTP (с запасным портом) или скрипт Google; без настроек - ошибка."""
 
-    def settings(self, password="app-password", brevo="", script=""):
+    def settings(self, password="app-password", script=""):
         return mock.patch.object(
             mailer.settings,
             "get_settings",
@@ -357,7 +333,6 @@ class MailerTests(unittest.TestCase):
                 "smtp_port": 465,
                 "smtp_user": "sender@test.com",
                 "smtp_password": password,
-                "brevo_api_key": brevo,
                 "apps_script_url": script,
                 "apps_script_token": "secret-word",
                 "sender_name": "ТСЖ",
@@ -381,28 +356,6 @@ class MailerTests(unittest.TestCase):
         server = plain.return_value.__enter__.return_value
         server.starttls.assert_called_once()
         server.send_message.assert_called_once()
-
-    def test_sends_password_by_brevo_over_https(self):
-        with self.settings(brevo="key-123"), mock.patch.object(
-            mailer.urllib.request, "urlopen"
-        ) as urlopen, mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
-            mailer.send_password("user@mail.ru", "Ab12Cd34")
-        smtp.assert_not_called()  # с ключом Brevo SMTP не нужен
-        request = urlopen.call_args[0][0]
-        self.assertEqual(request.get_header("Api-key"), "key-123")
-        sent = json.loads(request.data.decode("utf-8"))
-        self.assertEqual(sent["to"], [{"email": "user@mail.ru"}])
-        self.assertEqual(sent["sender"]["email"], "sender@test.com")
-        self.assertIn("Ab12Cd34", sent["textContent"])
-
-    def test_brevo_refusal_becomes_app_error(self):
-        refusal = mailer.urllib.error.HTTPError("url", 401, "Unauthorized", {}, None)
-        with self.settings(brevo="bad"), mock.patch.object(
-            mailer.urllib.request, "urlopen", side_effect=refusal
-        ):
-            with self.assertRaises(AppError) as error:
-                mailer.send_password("user@mail.ru", "Ab12Cd34")
-        self.assertIn("401", str(error.exception))
 
     def answer(self, text):
         """Подменяет ответ скрипта Google (urlopen) заданным JSON-текстом."""

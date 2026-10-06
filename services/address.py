@@ -30,7 +30,7 @@ def queue_get():
     try:
         with open(queue_path(), encoding="utf-8") as file:
             return str(json.load(file).get("address", ""))
-    except (OSError, ValueError, AttributeError):  # файла нет или он испорчен - очереди нет
+    except (OSError, ValueError, AttributeError):
         return ""
 
 
@@ -76,7 +76,7 @@ def is_valid(text):
         isinstance(text, str)
         and 5 <= len(text) <= MAX_LENGTH
         and "\n" not in text
-        and "—" not in text  # так нейросеть начинает объяснения вместо адреса
+        and "—" not in text
         and re.search(r"(дом|д\.)\s*\d", text, re.I) is not None
     )
 

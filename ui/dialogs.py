@@ -54,8 +54,6 @@ def _message(parent, title, text, icon, buttons):
     dialog.result = None
     board.label(16, 13, 269, title, "Medium", 16, align="left")
     board.hline(0, 52, 521)
-    # круглый значок слева (красный для ошибки, синий для остальных), текст справа от него;
-    # и значок, и текст стоят по вертикали в середине области между линией и кнопками
     color = "#ff5b5b" if icon == "!" else kit.BLUE
     board.shape(36, 114, 56, 56, 28, color)
     board.centered(36, 114, 56, 56, icon, "Bold", 32, color=kit.WHITE)
@@ -111,13 +109,10 @@ def comma(kopecks):
     return check.kopecks_to_text(kopecks).replace(".", ",")
 
 
-def add_field(
-    board, label_x, label_y, label_w, caption, x, y, w, show="", text="", max_length=None
-):
-    """Подпись (шрифт 16) и поле ввода под ней. max_length - предел длины.
+def add_field(board, caption, x, y, w, show="", text="", max_length=None):
+    """Подпись (шрифт 16) над полем по его левому краю и само поле ввода.
 
-    Подпись всегда стоит над полем по его левому краю на одном и том же расстоянии, поэтому
-    координаты подписи (label_x, label_y, label_w) оставлены только для совместимости.
+    max_length - наибольшая длина текста.
     """
     board.label(x + 4, y - 29, w, caption, "Regular", 16, align="left")
     return kit.EntryBox(board, x, y, w, 42, show=show, text=text, max_length=max_length)
@@ -140,10 +135,10 @@ class ApartmentDialog(Modal):
         board = self.board
 
         board.label(0, 42, 521, title, "Bold", 32)
-        self.number = add_field(board, 19, 113, 203, "Номер квартиры", 59, 142, 403)
-        self.area = add_field(board, 19, 197, 173, "Площадь, м2", 59, 226, 403)
-        self.owner = add_field(board, 19, 281, 226, "ФИО собственника", 59, 310, 403)
-        self.phone = add_field(board, 19, 365, 258, "Телефон собственника", 59, 394, 403)
+        self.number = add_field(board, "Номер квартиры", 59, 142, 403)
+        self.area = add_field(board, "Площадь, м2", 59, 226, 403)
+        self.owner = add_field(board, "ФИО собственника", 59, 310, 403)
+        self.phone = add_field(board, "Телефон собственника", 59, 394, 403)
         self.member = kit.CheckBox(board, 63, 448)
         board.label(99, 449, 300, "Собственник - член ТСЖ", "Regular", 16, align="left")
         kit.note(
@@ -217,11 +212,11 @@ class RequestDialog(Modal):
             board, [("Звонок", "Звонок", 81, 246), ("Приложение", "Приложение", 212, 246)]
         )
 
-        self.title_entry = add_field(board, 19, 281, 123, "Тема", 59, 310, 403, max_length=50)
+        self.title_entry = add_field(board, "Тема", 59, 310, 403, max_length=50)
         board.label(63, 365, 300, "Описание", "Regular", 16, align="left")
         self.description = kit.TextBox(board, 59, 394, 403, 42, max_length=250)
         self.executor = add_field(
-            board, 19, 447, 358, "Исполнитель (можно указать позже)", 59, 476, 403, max_length=25
+            board, "Исполнитель (можно указать позже)", 59, 476, 403, max_length=25
         )
         board.label(0, 548, 521, "Заявка будет создана со статусом «Новая»", "ExtraLight", 20)
         kit.Button(board, 177, 659, 119, 35, "Отмена", self.destroy, "plain")
@@ -263,8 +258,8 @@ class TargetChargeDialog(Modal):
         board = self.board
 
         board.label(0, 42, 521, "Новый целевой сбор", "Bold", 32)
-        self.purpose = add_field(board, 19, 113, 166, "Назначение", 59, 142, 403, max_length=50)
-        self.amount = add_field(board, 19, 197, 258, "Сумма с квартиры, руб.", 59, 226, 403)
+        self.purpose = add_field(board, "Назначение", 59, 142, 403, max_length=50)
+        self.amount = add_field(board, "Сумма с квартиры, руб.", 59, 226, 403)
         self.amount.on_change(self.update_preview)
         board.label(63, 281, 300, "Месяц", "Regular", 16, align="left")
         self.months = dates.get_month_list()
@@ -314,16 +309,14 @@ class TargetChargeDialog(Modal):
 class ListDialog(Modal):
     """Окно-список. columns - столбцы таблицы, rows - строки (ключ, значения, цвет)."""
 
-    def __init__(self, parent, title, size, title_box, columns, rows, back_x):
+    def __init__(self, parent, title, size, columns, rows):
         """
         Args:
             parent: окно, из которого открыт список.
             title (str): заголовок окна и надпись в нём.
             size (tuple): ширина и высота кадра макета.
-            title_box (tuple): положение рамки заголовка (x, ширина), как в Figma.
             columns (list): описание столбцов таблицы.
             rows (list): строки таблицы.
-            back_x (int): положение кнопки «Назад» по горизонтали.
         """
         super().__init__(parent, title, *size)
         board = self.board
@@ -332,7 +325,6 @@ class ListDialog(Modal):
             board, 32, 103, size[0] - 50, 354, columns, header_line=36, row_height=44, header_top=3
         )
         table.set_rows(rows)
-        # кнопка у правого края таблицы (таблица занимает ширину кадра минус поля 32 и 18)
         kit.Button(board, size[0] - 18 - 119, size[1] - 94, 119, 35, "Назад", self.destroy, "plain")
 
 
@@ -363,7 +355,7 @@ def show_target_charges(parent):
             item["paid"],
         ]
         rows.append((number, values, None))
-    ListDialog(parent, "Все целевые сборы", (878, 593), (-77, 525), columns, rows, 742)
+    ListDialog(parent, "Все целевые сборы", (878, 593), columns, rows)
 
 
 def show_payments(parent):
@@ -385,7 +377,7 @@ def show_payments(parent):
             item["comment"] or "",
         ]
         rows.append((number, values, None))
-    ListDialog(parent, "Оплаты", (878, 593), (-77, 367), columns, rows, 742)
+    ListDialog(parent, "Оплаты", (878, 593), columns, rows)
 
 
 def show_residents(parent):
@@ -405,4 +397,4 @@ def show_residents(parent):
             f"{item['area']:g}",
         ]
         rows.append((index, values, None))
-    ListDialog(parent, "Жильцы", (854, 593), (-77, 367), columns, rows, 597)
+    ListDialog(parent, "Жильцы", (854, 593), columns, rows)

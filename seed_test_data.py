@@ -29,7 +29,6 @@ def fill():
         os.remove(database.DB_PATH)
     database.init_db()
 
-    # адрес записан сразу полным, поэтому запрос к нейросети для тестовых данных не нужен
     with mock.patch.object(address, "normalize", side_effect=lambda raw: raw):
         auth.register_chairman(
             {

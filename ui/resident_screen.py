@@ -61,7 +61,6 @@ class ResidentScreen:
                 align="left",
             )
 
-        self.debt_layer_widgets = None
         board.shape(33, 137, 903, 108, 22, "#ffcbae")
         board.label(
             61, 151, 400, f"Задолженность на {dates.today_text()}", "Light", 24, align="left"

@@ -31,7 +31,6 @@ class ValidationTest(unittest.TestCase):
             validation.check_phone("+799912345678")
 
     def test_login_must_be_email(self):
-        # почта приводится к нижнему регистру и принимается с точками, плюсом и цифрами
         self.assertEqual(validation.check_login("Ivan.Petrov+77@Mail.ru"), "ivan.petrov+77@mail.ru")
         for wrong in ("ivan_77", "иван@mail.ru", "ivan@mail", "ivan @mail.ru", "@mail.ru"):
             with self.assertRaises(AppError):

@@ -12,13 +12,11 @@ from db.database import get_app_folder
 
 CONFIG_NAME = "mail_config.json"
 
-# ключ -> значение по умолчанию; переменная окружения называется так же большими буквами
 DEFAULTS = {
     "deepseek_api_key": "",
-    "apps_script_url": "",  # если задан, письма идут через скрипт Google (HTTPS) - основной способ
+    "apps_script_url": "",
     "apps_script_token": "",
-    "brevo_api_key": "",  # если задан, письма идут через Brevo по HTTPS, а не через SMTP
-    "default_region": "Новосибирская область",  # подставляется, если в адресе нет региона
+    "default_region": "Новосибирская область",
     "default_city": "Новосибирск",
     "smtp_host": "smtp.gmail.com",
     "smtp_port": 465,
@@ -34,7 +32,7 @@ def get_settings():
     try:
         with open(os.path.join(get_app_folder(), CONFIG_NAME), encoding="utf-8") as file:
             values.update(json.load(file))
-    except (OSError, ValueError):  # файла нет или он испорчен - работаем с умолчаниями
+    except (OSError, ValueError):
         pass
     for key in DEFAULTS:
         from_env = os.environ.get(key.upper())

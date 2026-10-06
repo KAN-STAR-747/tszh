@@ -28,11 +28,11 @@ class FullNameTests(unittest.TestCase):
     def test_incomplete_or_wrong_name_is_rejected(self):
         for wrong in (
             "",
-            "Талаев",  # только фамилия
-            "Талаев В. А.",  # инициалы
+            "Талаев",
+            "Талаев В. А.",
             "Талаев В.А.",
-            "Талаев Владислав Анатольевич Иванович",  # слишком много слов
-            "Талаев Влад1слав",  # цифры
+            "Талаев Владислав Анатольевич Иванович",
+            "Талаев Влад1слав",
             "Талаев Владислав@",
         ):
             with self.assertRaises(AppError, msg=wrong):
@@ -77,7 +77,7 @@ class CodeTests(unittest.TestCase):
     def test_code_is_four_random_digits(self):
         codes = {verification.make_code() for _ in range(200)}
         self.assertTrue(all(len(code) == 4 and code.isdigit() for code in codes))
-        self.assertGreater(len(codes), 100)  # код действительно случайный, а не один и тот же
+        self.assertGreater(len(codes), 100)
 
 
 def resident_form(**changes):
@@ -99,8 +99,8 @@ class VerificationTests(BaseTest):
 
     def setUp(self):
         super().setUp()
-        verification.reset()
-        self.addCleanup(verification.reset)
+        verification._pending.clear()
+        self.addCleanup(verification._pending.clear)
         self.clock = 1000.0
         for patcher in (
             mock.patch.object(verification, "now", side_effect=lambda: self.clock),
@@ -119,7 +119,7 @@ class VerificationTests(BaseTest):
         login = self.start_chairman()
         self.assertEqual(login, "ivanov@example.com")
         self.send.assert_called_once_with("ivanov@example.com", "4821")
-        self.assertFalse(auth.chairman_exists())  # до ввода кода в базе ничего нет
+        self.assertFalse(auth.chairman_exists())
 
     def test_correct_code_creates_chairman(self):
         login = self.start_chairman()
@@ -130,7 +130,7 @@ class VerificationTests(BaseTest):
     def test_correct_code_creates_resident(self):
         auth.register_chairman(chairman_data())
         login = verification.start(verification.RESIDENT, resident_form())
-        self.assertEqual(auth.get_pending_residents(), [])  # до ввода кода жильца в базе нет
+        self.assertEqual(auth.get_pending_residents(), [])
         verification.confirm(login, "4821")
         self.assertEqual(len(auth.get_pending_residents()), 1)
 
@@ -140,9 +140,9 @@ class VerificationTests(BaseTest):
             with self.assertRaises(AppError) as error:
                 verification.confirm(login, "0000")
             self.assertIn(f"Осталось попыток: {left}", str(error.exception))
-        with self.assertRaises(AppError):  # пятая ошибка сбрасывает регистрацию
+        with self.assertRaises(AppError):
             verification.confirm(login, "0000")
-        with self.assertRaises(AppError):  # теперь даже верный код не подходит
+        with self.assertRaises(AppError):
             verification.confirm(login, "4821")
         self.assertFalse(auth.chairman_exists())
 
@@ -155,14 +155,14 @@ class VerificationTests(BaseTest):
 
     def test_resend_has_cooldown_and_replaces_code(self):
         login = self.start_chairman()
-        with self.assertRaises(AppError):  # слишком рано
+        with self.assertRaises(AppError):
             verification.resend(login)
         self.clock += verification.RESEND_SECONDS + 1
         with mock.patch.object(verification, "make_code", return_value="1357"):
             verification.resend(login)
         self.assertEqual(self.send.call_count, 2)
         with self.assertRaises(AppError):
-            verification.confirm(login, "4821")  # старый код больше не действует
+            verification.confirm(login, "4821")
         verification.confirm(login, "1357")
         self.assertTrue(auth.chairman_exists())
 
@@ -176,9 +176,9 @@ class VerificationTests(BaseTest):
     def test_bad_form_or_taken_email_sends_no_code(self):
         auth.register_chairman(chairman_data())
         for form in (
-            resident_form(full_name="Смирнов О.Р."),  # инициалы
+            resident_form(full_name="Смирнов О.Р."),
             resident_form(login="не-почта"),
-            resident_form(login="ivanov@example.com"),  # почта уже занята
+            resident_form(login="ivanov@example.com"),
         ):
             with self.assertRaises(AppError):
                 verification.start(verification.RESIDENT, form)
@@ -237,8 +237,8 @@ class PasswordChangeTests(BaseTest):
             auth.update_profile(
                 self.resident["users_id"], "Смирнов Олег Игоревич", "+79991112233", "123"
             )
-        user = auth.login_user("smirnov@example.com", "pass1234")  # старый пароль работает
-        self.assertEqual(user["full_name"], "Смирнов Олег Романович")  # и ФИО не изменилось
+        user = auth.login_user("smirnov@example.com", "pass1234")
+        self.assertEqual(user["full_name"], "Смирнов Олег Романович")
         with self.assertRaises(AppError):
             auth.update_chairman(self.chairman["users_id"], self.chairman_data(), "short")
         self.assertEqual(
@@ -246,7 +246,6 @@ class PasswordChangeTests(BaseTest):
         )
 
     def test_login_cannot_be_changed(self):
-        # у функций сохранения нет параметра для почты: логин после сохранения прежний
         auth.update_profile(
             self.resident["users_id"], "Смирнов Олег Романович", "+79991112233", "newpass99"
         )

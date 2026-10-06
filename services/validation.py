@@ -22,7 +22,6 @@ def require_text(value, field_name):
     return value
 
 
-# одно слово ФИО: буквы (кириллица или латиница), части через дефис («Салтыков-Щедрин»)
 NAME_WORD = re.compile(r"[A-Za-zА-Яа-яЁё]{2,}(-[A-Za-zА-Яа-яЁё]{2,})*")
 FULL_NAME_HINT = (
     "Укажите ФИО полностью: фамилию, имя и отчество (если оно есть), "
@@ -35,11 +34,9 @@ def check_full_name(value):
     words = value.split()
     if not 2 <= len(words) <= 3 or not all(NAME_WORD.fullmatch(word) for word in words):
         raise AppError(FULL_NAME_HINT)
-    # каждое слово (и каждая часть через дефис) с большой буквы, остальное строчными
     return " ".join("-".join(part.capitalize() for part in word.split("-")) for word in words)
 
 
-# кавычки и скобки, которые пользователь мог напечатать вокруг названия ТСЖ
 HOA_MARKS = re.compile(r"[\"'`«»“”„‟()\[\]{}<>]")
 MAX_HOA_NAME_LENGTH = 50
 
@@ -52,8 +49,8 @@ def check_hoa_name(value):
     """
     text = require_text(value, "Наименование ТСЖ")
     core = HOA_MARKS.sub(" ", text)
-    core = re.sub(r"\bтсж\b", " ", core, flags=re.I)  # слово ТСЖ (в том числе повторное)
-    core = re.sub(r"^ТСЖ(?=[А-ЯЁA-Z])", "", core.strip())  # слитно: ТСЖБерезка
+    core = re.sub(r"\bтсж\b", " ", core, flags=re.I)
+    core = re.sub(r"^ТСЖ(?=[А-ЯЁA-Z])", "", core.strip())
     core = " ".join(core.split()).strip(" .,;:_-–—")
     if not core:
         raise AppError("Укажите название ТСЖ, например: Березка.")
@@ -104,9 +101,8 @@ def same_surname(full_name_a, full_name_b):
     return first_a != "" and first_a == first_b
 
 
-MAX_EMAIL_LENGTH = 254  # предел длины адреса электронной почты
+MAX_EMAIL_LENGTH = 254
 
-# адрес вида имя@домен.зона: латиница, цифры и знаки . _ % + - в имени
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 
 
@@ -115,7 +111,7 @@ def check_login(value):
     login = require_text(value, "Электронная почта")
     if len(login) > MAX_EMAIL_LENGTH or not EMAIL_PATTERN.fullmatch(login):
         raise AppError("Логином должен быть адрес электронной почты, например name@mail.ru.")
-    return login.lower()  # почта не зависит от регистра: хранится строчными буквами
+    return login.lower()
 
 
 def check_password(password, repeat):

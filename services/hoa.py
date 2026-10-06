@@ -43,14 +43,13 @@ def has_pending_address():
 def resolve_pending_address():
     """Оформляет адрес из очереди. Возвращает True, если адрес заменён на полный."""
     if not has_pending_address():
-        address_service.queue_clear()  # очередь устарела (адрес уже изменили) - убираем
+        address_service.queue_clear()
         return False
     queued = address_service.queue_get()
     try:
         full = address_service.normalize(queued)
-    except (OSError, ValueError, KeyError, IndexError):  # связи всё ещё нет - ждём дальше
+    except (OSError, ValueError, KeyError, IndexError):
         return False
-    # условие по старому тексту: адрес, который председатель успел изменить, не затираем
     db.execute("UPDATE hoa SET address = ? WHERE address = ?", (full, queued))
     address_service.queue_clear()
     return True

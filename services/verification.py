@@ -13,14 +13,13 @@ from services import auth, mailer
 from services.errors import AppError
 
 CODE_LENGTH = 4
-LIFETIME_SECONDS = 600  # код действует 10 минут
-MAX_ATTEMPTS = 5  # неверных вводов до сброса регистрации
-RESEND_SECONDS = 30  # как часто можно просить новый код
+LIFETIME_SECONDS = 600
+MAX_ATTEMPTS = 5
+RESEND_SECONDS = 30
 
 CHAIRMAN = "chairman"
 RESIDENT = "resident"
 
-# почта -> {"kind", "data", "code", "expires", "sent", "attempts"}
 _pending = {}
 
 
@@ -32,11 +31,6 @@ def now():
 def make_code():
     """Случайный код из 4 цифр (модуль secrets - для секретных значений)."""
     return "".join(secrets.choice(string.digits) for _ in range(CODE_LENGTH))
-
-
-def reset():
-    """Забывает все ожидающие регистрации (для тестов)."""
-    _pending.clear()
 
 
 def _issue(login, kind, data):
@@ -68,7 +62,7 @@ def start(kind, data):
     else:
         raise ValueError(kind)
     login = fields["login"]
-    auth.ensure_login_free(login)  # о занятой почте скажем сразу, а не после ввода кода
+    auth.ensure_login_free(login)
     _issue(login, kind, data)
     return login
 

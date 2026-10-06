@@ -49,7 +49,7 @@ def generate_password():
     if api_key:
         try:
             password = ask_deepseek(api_key)
-        except (OSError, ValueError, KeyError, IndexError):  # нет сети, ошибка API, чужой формат
+        except (OSError, ValueError, KeyError, IndexError):
             password = None
         if is_valid(password):
             return password

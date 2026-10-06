@@ -32,7 +32,7 @@ DEBT_TINT = "#ffe1d1"
 NEW_TINT = "#fff2b8"
 SELECT_TINT = "#d9e8ff"
 PLACEHOLDER = "#8e8e93"
-MUTED = "#667085"  # приглушённый серый для пояснений
+MUTED = "#667085"
 STATUS_ORANGE = "#ffa100"
 
 
@@ -102,7 +102,7 @@ def load_fonts():
     except AttributeError:
         return
     for name in FONT_FILES:
-        add_font(resource_path(os.path.join("fonts", name)), 0x10, 0)  # 0x10 - только для нас
+        add_font(resource_path(os.path.join("fonts", name)), 0x10, 0)
 
 
 def font(style, size):
@@ -136,7 +136,7 @@ def shape_image(w, h, radius, fill, outline=None, outline_w=1, shadows=()):
     size = ((w + 2 * pad) * SUPER, (h + 2 * pad) * SUPER)
     image = Image.new("RGBA", size, (0, 0, 0, 0))
 
-    for x, y, blur, spread, (r, g, b, alpha) in shadows:  # тени: размытая маска
+    for x, y, blur, spread, (r, g, b, alpha) in shadows:
         mask = Image.new("L", size, 0)
         box = ((pad + x - spread) * SUPER, (pad + y - spread) * SUPER)
         box += ((pad + x + w + spread) * SUPER - 1, (pad + y + h + spread) * SUPER - 1)
@@ -158,13 +158,11 @@ def shape_image(w, h, radius, fill, outline=None, outline_w=1, shadows=()):
     else:
         draw.rounded_rectangle(box, radius * SUPER, fill=_rgb(fill))
 
-    # уменьшаем до нужного размера (так получается сглаживание) и кладём в кэш
     result = (ImageTk.PhotoImage(image.resize((w + 2 * pad, h + 2 * pad), Image.LANCZOS)), pad)
     _cache[key] = result
     return result
 
 
-# Рисует сглаженную ломаную линию: стрелку списка и галочку
 def line_image(size, points, color, width):
     """Сглаженная ломаная линия (стрелка вниз, галочка). points - в пикселях экрана."""
     key = ("line", size, tuple(points), color, width)
@@ -174,18 +172,12 @@ def line_image(size, points, color, width):
         big = [(x * SUPER, y * SUPER) for x, y in points]
         draw.line(big, fill=_rgb(color), width=int(width * SUPER), joint="curve")
         r = width * SUPER / 2
-        for x, y in (big[0], big[-1]):  # круглые концы
+        for x, y in (big[0], big[-1]):
             draw.ellipse((x - r, y - r, x + r, y + r), fill=_rgb(color))
         _cache[key] = ImageTk.PhotoImage(image.resize(size, Image.LANCZOS))
     return _cache[key]
 
 
-# ======================================================================
-# ЧАСТЬ 3. Холст Board: окно макета фиксированного размера
-# ======================================================================
-
-
-# Board - холст (Canvas): на нём рисуется одно окно макета
 class Board(tk.Canvas):
     """Холст, на котором рисуется одно окно макета (координаты - как в Figma).
 
@@ -194,43 +186,32 @@ class Board(tk.Canvas):
 
     def __init__(self, parent, width, height):
         super().__init__(parent, width=S(width), height=S(height), bg=WHITE, highlightthickness=0)
-        # слой - метка (тег) элементов; слой можно стереть целиком
         self.layer = "base"
-        # поля ввода тоже относятся к слою
-        self.layer_widgets = {}  # слой -> поля ввода, которые нужно удалить вместе со слоем
-        # области, которые листаются колесом мыши
-        self.wheel_areas = []  # области, прокручиваемые колесом мыши
-        # счётчик, чтобы у каждой кнопки был свой тег
-        self.counter = 0  # для уникальных тегов кнопок
-        # реагируем на колесо мыши
+        self.layer_widgets = {}
+        self.wheel_areas = []
+        self.counter = 0
         self.bind("<MouseWheel>", self._on_wheel)
 
-    # все элементы, созданные после этого, попадут в слой name
     def set_layer(self, name):
         """Все элементы, созданные дальше, попадут в слой name."""
         self.layer = name
 
     def clear_layer(self, name):
         """Удаляет с холста слой целиком (рисунки, тексты, поля ввода)."""
-        # удаляем с холста всё, что помечено этим тегом
         self.delete(name)
-        # и уничтожаем поля ввода слоя
         for widget in self.layer_widgets.pop(name, []):
             widget.destroy()
         self.wheel_areas = [area for area in self.wheel_areas if area[0] != name]
 
-    # запоминаем поле ввода в текущем слое
     def add_widget(self, widget):
         """Запоминает поле ввода, чтобы удалить его вместе со слоем."""
         self.layer_widgets.setdefault(self.layer, []).append(widget)
 
-    # даёт уникальный тег: button1, button2...
     def new_tag(self, prefix):
         """Уникальный тег для группы элементов (чтобы повесить на неё щелчок)."""
         self.counter += 1
         return f"{prefix}{self.counter}"
 
-    # Фигура-подложка (панель, плашка): рисуем картинку и кладём на холст
     def shape(self, x, y, w, h, radius, fill, outline=None, shadows=(), tags=()):
         """Скруглённый прямоугольник (панель, плашка, фон поля)."""
         image, pad = shape_image(
@@ -240,10 +221,8 @@ class Board(tk.Canvas):
             S(x) - pad, S(y) - pad, anchor="nw", image=image, tags=(self.layer, *tags)
         )
 
-    # Надпись: x, y, ширина, текст, начертание Figma, размер, цвет, выравнивание
     def label(self, x, y, w, text, style, size, color=BLACK, align="center", wrap=False, tags=()):
         """Надпись в рамке макета (x, y, ширина w). align: center, left или right."""
-        # от выравнивания зависит, к какой точке привязан текст
         px, anchor = {"center": (x + w / 2, "n"), "left": (x, "nw"), "right": (x + w, "ne")}[align]
         return self.create_text(
             S(px),
@@ -257,7 +236,6 @@ class Board(tk.Canvas):
             tags=(self.layer, *tags),
         )
 
-    # Надпись по центру прямоугольника
     def centered(self, x, y, w, h, text, style, size, color=BLACK, tags=()):
         """Однострочная надпись по центру прямоугольника."""
         return self.create_text(
@@ -270,7 +248,6 @@ class Board(tk.Canvas):
             tags=(self.layer, *tags),
         )
 
-    # Горизонтальная линия
     def hline(self, x, y, w, color=BLACK, width=1, tags=()):
         """Горизонтальная линия."""
         return self.create_line(
@@ -283,10 +260,8 @@ class Board(tk.Canvas):
             tags=(self.layer, *tags),
         )
 
-    # Если текст не влезает в ширину - обрезаем и добавляем «…»
     def fit_text(self, text, style, size, max_width):
         """Обрезает текст многоточием, если он не помещается в max_width."""
-        # объект для измерения ширины текста
         measure = tkfont.Font(font=font(style, size))
         if measure.measure(text) <= S(max_width):
             return text
@@ -294,33 +269,28 @@ class Board(tk.Canvas):
             text = text[:-1]
         return text + "…"
 
-    # Запоминаем область, которая листается колесом
     def add_wheel_area(self, x, y, w, h, callback):
         """Область, которая прокручивается колесом мыши (callback получает -1 или 1)."""
         self.wheel_areas.append((self.layer, S(x), S(y), S(x + w), S(y + h), callback))
 
-    # при прокрутке ищем область под курсором и вызываем её функцию
     def _on_wheel(self, event):
         for _, x0, y0, x1, y1, callback in self.wheel_areas:
             if x0 <= event.x <= x1 and y0 <= event.y <= y1:
                 callback(-1 if event.delta > 0 else 1)
                 return
 
-    # Над элементом курсор мыши меняется на «руку»
     def hover_cursor(self, tag):
         """Над элементами с этим тегом курсор становится «рукой»."""
         self.tag_bind(tag, "<Enter>", lambda e: self.configure(cursor="hand2"))
         self.tag_bind(tag, "<Leave>", lambda e: self.configure(cursor=""))
 
 
-# Плашка с сообщением: голубая (info) или красная (error)
 def note(board, x, y, w, h, text, kind="info"):
     """Цветная плашка с сообщением: "info" (голубая) или "error" (красная).
 
     Returns:
         int: номер текста на холсте (чтобы потом изменить надпись).
     """
-    # выбираем цвета по виду плашки
     fill, color = (NOTE_RED, NOTE_RED_TEXT) if kind == "error" else (NOTE_BLUE, NOTE_BLUE_TEXT)
     board.shape(x, y, w, h, 8, fill, BLACK)
     return board.create_text(
@@ -335,36 +305,23 @@ def note(board, x, y, w, h, text, kind="info"):
     )
 
 
-# ======================================================================
-# ЧАСТЬ 4. Кнопка и ссылка
-# ======================================================================
-
-
-# Кнопка. Обычная кнопка Tkinter не умеет скруглений: наша - картинка + текст на холсте
 class Button:
     """Кнопка-«таблетка» из макета: синяя ("primary") или белая ("plain")."""
 
     def __init__(self, board, x, y, w, h, text, command, kind="primary", size=16):
-        # primary - синяя кнопка, иначе белая
         primary = kind == "primary"
-        # тень кнопки из Figma
         shadow = scaled(BUTTON_SHADOW)
-        # картинка кнопки в обычном состоянии
         self.normal, pad = shape_image(
             S(w), S(h), S(16), BLUE if primary else WHITE, None, 1, shadow
         )
-        # и чуть темнее - когда мышь над кнопкой
         self.hover, _ = shape_image(
             S(w), S(h), S(16), BLUE_HOVER if primary else "#ececec", None, 1, shadow
         )
         self.board, self.command = board, command
-        # общий тег: картинка и текст кнопки реагируют на мышь вместе
         tag = board.new_tag("button")
-        # кладём картинку кнопки на холст
         self.image_id = board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer, tag)
         )
-        # текст на кнопке
         board.create_text(
             S(x + w / 2),
             S(y + h / 2),
@@ -373,9 +330,7 @@ class Button:
             fill=WHITE if primary else BLACK,
             tags=(board.layer, tag),
         )
-        # рука над кнопкой
         board.hover_cursor(tag)
-        # мышь вошла - светлее; мышь ушла - обычная; отпустили кнопку - вызываем функцию
         board.tag_bind(
             tag, "<Enter>", lambda e: board.itemconfigure(self.image_id, image=self.hover), "+"
         )
@@ -385,7 +340,6 @@ class Button:
         board.tag_bind(tag, "<ButtonRelease-1>", lambda e: self.command())
 
 
-# Ссылка: синий текст, по щелчку вызывает command
 def link(board, x, y, w, text, command, size=14):
     """Синяя ссылка-текст (например, «зарегистрироваться»)."""
     tag = board.new_tag("link")
@@ -394,12 +348,6 @@ def link(board, x, y, w, text, command, size=14):
     board.tag_bind(tag, "<ButtonRelease-1>", lambda e: command())
 
 
-# ======================================================================
-# ЧАСТЬ 5. Поля ввода
-# ======================================================================
-
-
-# Рамка поля ввода: обычная и с синей обводкой, когда в поле курсор
 def _chip_images(w, h):
     """Две картинки рамки поля: обычная и с синей обводкой (когда в поле курсор)."""
     normal, pad = shape_image(S(w), S(h), S(8), WHITE, BLACK, line_width(1))
@@ -407,7 +355,6 @@ def _chip_images(w, h):
     return normal, focused, pad
 
 
-# Поле ввода: обычный tk.Entry, положенный на картинку скруглённой рамки
 class EntryBox:
     """Однострочное поле ввода в скруглённой рамке (в Figma - «Assistive chip»)."""
 
@@ -427,17 +374,13 @@ class EntryBox:
     ):
         """show - символ вместо букв (для пароля), placeholder - серая подсказка,
         max_length - наибольшая длина текста, readonly - поле нельзя менять."""
-        # запоминаем параметры
         self.board, self.placeholder, self.show_char = board, placeholder, show
         self.max_length = max_length
-        # показана ли серая подсказка вместо текста
         self.showing_placeholder = False
         self.normal, self.focused, pad = _chip_images(w, h)
-        # картинка рамки
         self.bg_id = board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer,)
         )
-        # настоящее поле ввода без собственной рамки (bd=0)
         self.entry = tk.Entry(
             board,
             bd=0,
@@ -449,7 +392,6 @@ class EntryBox:
             insertbackground=BLACK,
             show=show,
         )
-        # кладём виджет на холст в нужное место
         board.create_window(
             S(x + w / 2),
             S(y + h / 2),
@@ -460,10 +402,8 @@ class EntryBox:
         )
         board.add_widget(self.entry)
         if max_length:
-            # проверка при каждом нажатии клавиши: длиннее max_length ввести нельзя
             check = (board.register(self._allowed), "%P")
             self.entry.configure(validate="key", validatecommand=check)
-        # курсор попал в поле - синяя рамка; ушёл - обычная
         self.entry.bind("<FocusIn>", self._focus_in)
         self.entry.bind("<FocusOut>", self._focus_out)
         if text:
@@ -473,23 +413,19 @@ class EntryBox:
         if readonly:
             self.set_readonly(True)
 
-    # Можно ли записать такой текст: подсказка не считается, остальное не длиннее max_length
     def _allowed(self, new_text):
         return self.showing_placeholder or len(new_text) <= self.max_length
 
-    # Запретить или разрешить менять текст (поле «Логин (не изменяется)»)
     def set_readonly(self, flag):
         state = "readonly" if flag else "normal"
         self.entry.configure(state=state, readonlybackground=WHITE)
 
-    # серая подсказка, пока поле пустое
     def _show_placeholder(self):
         if self.placeholder and not self.entry.get():
             self.showing_placeholder = True
             self.entry.configure(show="", fg=PLACEHOLDER)
             self.entry.insert(0, self.placeholder)
 
-    # при входе в поле: синяя рамка и убираем подсказку
     def _focus_in(self, event):
         self.board.itemconfigure(self.bg_id, image=self.focused)
         if self.showing_placeholder:
@@ -497,12 +433,10 @@ class EntryBox:
             self.entry.delete(0, "end")
             self.entry.configure(fg=BLACK, show=self.show_char)
 
-    # при выходе: обычная рамка, при пустом поле - снова подсказка
     def _focus_out(self, event):
         self.board.itemconfigure(self.bg_id, image=self.normal)
         self._show_placeholder()
 
-    # Текст поля (подсказка не считается)
     def get(self):
         """Введённый текст (без подсказки)."""
         return "" if self.showing_placeholder else self.entry.get()
@@ -510,7 +444,7 @@ class EntryBox:
     def set(self, text):
         """Заменяет текст в поле."""
         self.showing_placeholder = False
-        state = str(self.entry.cget("state"))  # запоминаем, было ли поле только для чтения
+        state = str(self.entry.cget("state"))
         self.entry.configure(state="normal", fg=BLACK, show=self.show_char)
         self.entry.delete(0, "end")
         self.entry.insert(0, text)
@@ -526,18 +460,15 @@ class EntryBox:
         """Ставит курсор в поле."""
         self.entry.focus_set()
 
-    # После каждой нажатой клавиши вызываем callback
     def on_change(self, callback):
         """Вызывает callback после каждого нажатия клавиши."""
         self.entry.bind("<KeyRelease>", lambda event: callback())
 
-    # По Enter вызываем callback
     def on_enter(self, callback):
         """Вызывает callback при нажатии Enter."""
         self.entry.bind("<Return>", lambda event: callback())
 
 
-# Многострочное поле (tk.Text) для описания заявки
 class TextBox:
     """Многострочное поле (описание заявки) в такой же рамке."""
 
@@ -547,7 +478,6 @@ class TextBox:
         bg_id = board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer,)
         )
-        # wrap="word" - перенос строк по словам
         self.text = tk.Text(
             board,
             bd=0,
@@ -570,18 +500,15 @@ class TextBox:
         self.text.bind("<FocusIn>", lambda e: board.itemconfigure(bg_id, image=self.focused))
         self.text.bind("<FocusOut>", lambda e: board.itemconfigure(bg_id, image=self.normal))
         if max_length:
-            # лишние символы (набранные или вставленные) сразу отрезаем
             self.text.bind("<KeyRelease>", self._cut)
             self.text.bind("<<Paste>>", lambda e: self.text.after(1, self._cut))
 
-    # Отрезает текст, который длиннее max_length
     def _cut(self, event=None):
         if len(self.text.get("1.0", "end-1c")) > self.max_length:
             self.text.delete(f"1.0+{self.max_length}c", "end")
 
     def get(self):
         """Введённый текст."""
-        # "1.0" - с начала (строка 1, символ 0) и до конца
         return self.text.get("1.0", "end").strip()
 
     def clear(self):
@@ -596,9 +523,9 @@ class DropMenu(tk.Toplevel):
     Длинный список листается колесом мыши, по пунктам можно ходить стрелками.
     """
 
-    ROW = 40  # высота строки в пикселях макета
-    PAD = 6  # отступ внутри карточки сверху и снизу
-    MAX_ROWS = 7  # сколько строк видно без прокрутки
+    ROW = 40
+    PAD = 6
+    MAX_ROWS = 7
     BORDER = "#cfd8e3"
 
     def __init__(self, drop):
@@ -612,13 +539,12 @@ class DropMenu(tk.Toplevel):
         self.width = S(w)
         self.height = rows * self.row_h + 2 * self.pad
         self.hover = max(drop.index, 0)
-        self.top = 0  # номер первой видимой строки (прокрутка)
+        self.top = 0
         self.closed = False
 
-        self.overrideredirect(True)  # без рамки и заголовка окна
+        self.overrideredirect(True)
         self.attributes("-topmost", True)
         board = drop.board
-        # под полем; если снизу не хватает места - над полем
         left = board.winfo_rootx() + S(x)
         below = board.winfo_rooty() + S(y + h) + S(4)
         if below + self.height > self.winfo_screenheight():
@@ -636,7 +562,6 @@ class DropMenu(tk.Toplevel):
             takefocus=True,
         )
         self.canvas.pack(fill="both", expand=True)
-        # скруглённая подсветка строки: одна картинка, которую переносим на нужную строку
         self.light, self.light_pad = shape_image(
             self.width - 2 * self.pad, self.row_h - S(4), S(8), PANEL_BLUE
         )
@@ -658,10 +583,7 @@ class DropMenu(tk.Toplevel):
         self.canvas.bind("<Return>", lambda e: self.pick(self.hover))
         self.canvas.bind("<Escape>", lambda e: self.close())
         self.canvas.bind("<FocusOut>", lambda e: self.after(50, self.close_if_unfocused))
-        # окно сдвинули, экран сменился или список закрыли иначе - закрываем и меню
         top = board.winfo_toplevel()
-        # любой щелчок мыши в окне программы (в том числе по самому списку) закрывает меню;
-        # щелчки внутри меню до окна программы не доходят - это отдельное окно
         self.top_bindings = (
             top,
             top.bind("<Configure>", lambda e: self.close(), "+"),
@@ -684,9 +606,7 @@ class DropMenu(tk.Toplevel):
             return
         self.closed = True
         self.drop.menu = None
-        self.drop.closed_at = (
-            time.monotonic()
-        )  # чтобы щелчок по полю закрывал, а не открывал заново
+        self.drop.closed_at = time.monotonic()
         try:
             top, configure, click, focus_out = self.top_bindings
             top.unbind("<Configure>", configure)
@@ -712,7 +632,7 @@ class DropMenu(tk.Toplevel):
                 font=font("Bold" if selected else "Regular", 14),
                 fill=BLUE if selected else BLACK,
             )
-        if total > self.MAX_ROWS:  # полоса прокрутки справа
+        if total > self.MAX_ROWS:
             track = self.height - 2 * self.pad
             bar = max(track * self.MAX_ROWS / total, S(24))
             start = self.pad + (track - bar) * self.top / (total - self.MAX_ROWS)
@@ -782,22 +702,19 @@ class DropMenu(tk.Toplevel):
         self.drop.select(number)
 
 
-# Выпадающий список: рамка, текст, стрелка. По щелчку открывается меню
 class DropBox:
     """Выпадающий список: значение и стрелка справа. По щелчку открывается меню."""
 
     def __init__(self, board, x, y, w, h, values, index=0, command=None, size=12):
         self.board, self.rect, self.size = board, (x, y, w, h), size
         self.values, self.command = list(values), command
-        self.menu, self.closed_at = None, 0.0  # открытое меню и время его закрытия
-        # номер выбранного пункта
+        self.menu, self.closed_at = None, 0.0
         self.index = index if self.values else -1
         normal, pad = shape_image(S(w), S(h), S(8), WHITE, BLACK, line_width(1))
         tag = board.new_tag("drop")
         board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=normal, tags=(board.layer, tag)
         )
-        # текст выбранного пункта
         self.text_id = board.create_text(
             S(x + (w - 34) / 2),
             S(y + h / 2),
@@ -805,7 +722,6 @@ class DropBox:
             font=font("Medium", size),
             tags=(board.layer, tag),
         )
-        # стрелка вниз, нарисованная как картинка
         arrow = line_image(
             (S(20), S(12)), [(S(2), S(2)), (S(10), S(9.5)), (S(18), S(2))], BLACK, max(2, S(2.4))
         )
@@ -815,7 +731,6 @@ class DropBox:
         board.hover_cursor(tag)
         board.tag_bind(tag, "<ButtonRelease-1>", lambda e: self._open_menu())
 
-    # текст выбранного пункта (длинный обрезаем)
     def _text(self):
         if 0 <= self.index < len(self.values):
             return self.board.fit_text(
@@ -823,16 +738,13 @@ class DropBox:
             )
         return ""
 
-    # Меню со всеми пунктами под полем
     def _open_menu(self):
-        # щелчок по полю, когда меню открыто, лишь закрывает его (меню закрылось по потере фокуса)
         if self.menu is not None or not self.values:
             return
         if time.monotonic() - self.closed_at < 0.25:
             return
         self.menu = DropMenu(self)
 
-    # Выбираем пункт и сообщаем об этом
     def select(self, position, notify=True):
         """Выбирает пункт по номеру."""
         self.index = position
@@ -840,23 +752,11 @@ class DropBox:
         if notify and self.command:
             self.command()
 
-    # Заменяем список пунктов
-    def set_values(self, values, index=0):
-        """Заменяет пункты списка."""
-        self.values = list(values)
-        self.select(index if self.values else -1, notify=False)
-
     def get(self):
         """Текст выбранного пункта."""
         return self.values[self.index] if 0 <= self.index < len(self.values) else ""
 
 
-# ======================================================================
-# ЧАСТЬ 6. Флажок и радиокнопки
-# ======================================================================
-
-
-# Флажок: серый квадрат; когда отмечен - синий с галочкой
 class CheckBox:
     """Флажок: серый квадрат, а когда отмечен - синий с белой галочкой."""
 
@@ -865,10 +765,8 @@ class CheckBox:
     def __init__(self, board, x, y, checked=False, command=None):
         self.board, self.checked, self.command = board, checked, command
         size = S(self.SIZE)
-        # две картинки: выключен и включен
         self.off, pad = shape_image(size, size, S(5), "#dcdcdc")
         self.on, _ = shape_image(size, size, S(5), BLUE)
-        # белая галочка
         tick = line_image(
             (size, size),
             [(size * 0.24, size * 0.53), (size * 0.43, size * 0.72), (size * 0.77, size * 0.30)],
@@ -879,7 +777,6 @@ class CheckBox:
         self.box_id = board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=self.off, tags=(board.layer, tag)
         )
-        # галочка скрыта, пока флажок снят
         self.tick_id = board.create_image(
             S(x), S(y), anchor="nw", image=tick, state="hidden", tags=(board.layer, tag)
         )
@@ -887,7 +784,6 @@ class CheckBox:
         board.tag_bind(tag, "<ButtonRelease-1>", lambda e: self.toggle())
         self.set(checked)
 
-    # Переключение по щелчку
     def toggle(self):
         """Переключает флажок и вызывает command."""
         self.set(not self.checked)
@@ -897,7 +793,6 @@ class CheckBox:
     def set(self, checked):
         """Ставит или снимает отметку."""
         self.checked = checked
-        # меняем картинку и показываем или прячем галочку
         self.board.itemconfigure(self.box_id, image=self.on if checked else self.off)
         self.board.itemconfigure(self.tick_id, state="normal" if checked else "hidden")
 
@@ -906,7 +801,6 @@ class CheckBox:
         return self.checked
 
 
-# Радиокнопки: выбрать можно только одну
 class RadioGroup:
     """Радиокнопки: можно выбрать только одну. items - список (значение, подпись, x, y)."""
 
@@ -915,13 +809,10 @@ class RadioGroup:
     def __init__(self, board, items, selected=0):
         self.board, self.values, self.selected = board, [item[0] for item in items], selected
         size = S(self.SIZE)
-        # кольцо кнопки
         ring, pad = shape_image(size, size, size // 2, WHITE, BLUE, max(2, S(2)))
         dot_size = S(self.SIZE * 0.4)
-        # точка внутри кольца
         dot, dot_pad = shape_image(dot_size, dot_size, dot_size // 2, BLUE)
         self.dots = []
-        # для каждого варианта рисуем кольцо, точку и подпись
         for position, (_, caption, x, y) in enumerate(items):
             tag = board.new_tag("radio")
             board.create_image(
@@ -949,7 +840,6 @@ class RadioGroup:
             board.tag_bind(tag, "<ButtonRelease-1>", lambda e, p=position: self.select(p))
         self.select(selected)
 
-    # показываем точку только у выбранной кнопки
     def select(self, position):
         """Выбирает кнопку по номеру."""
         self.selected = position
@@ -961,18 +851,11 @@ class RadioGroup:
         return self.values[self.selected]
 
 
-# ======================================================================
-# ЧАСТЬ 7А. Прокручиваемый текст, круглые кнопки, логотип
-# ======================================================================
-
-
-# Текстовое поле с полосой прокрутки без рамки: описание заявки в карточке
 class ScrollText:
     """Многострочный текст с прокруткой. Длинный текст листается колесом мыши или полосой."""
 
     def __init__(self, board, x, y, w, h, text="", size=20, style="Light", max_length=None):
         self.max_length = max_length
-        # обычное многострочное поле Tkinter: без рамки, фон белый (как карточка под ним)
         self.text = tk.Text(
             board,
             bd=0,
@@ -985,10 +868,9 @@ class ScrollText:
             padx=0,
             pady=0,
         )
-        # полоса прокрутки справа; yscrollcommand заставляет её двигаться вместе с текстом
         self.scroll = tk.Scrollbar(board, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=self.scroll.set)
-        bar = S(16)  # ширина полосы
+        bar = S(16)
         board.create_window(
             S(x),
             S(y),
@@ -1010,19 +892,17 @@ class ScrollText:
         board.add_widget(self.text)
         board.add_widget(self.scroll)
         if max_length:
-            # лишние символы (набранные или вставленные) сразу отрезаем
             self.text.bind("<KeyRelease>", self._cut)
             self.text.bind("<<Paste>>", lambda e: self.text.after(1, self._cut))
         self.set(text)
 
-    # Отрезает текст, который длиннее max_length
     def _cut(self, event=None):
         if len(self.text.get("1.0", "end-1c")) > self.max_length:
             self.text.delete(f"1.0+{self.max_length}c", "end")
 
     def set(self, text):
         """Записывает текст в поле."""
-        state = str(self.text.cget("state"))  # запоминаем, было ли поле только для чтения
+        state = str(self.text.cget("state"))
         self.text.configure(state="normal")
         self.text.delete("1.0", "end")
         self.text.insert("1.0", text)
@@ -1037,40 +917,34 @@ class ScrollText:
         self.text.configure(state="disabled" if flag else "normal")
 
 
-# Рисуем значок для круглой кнопки: шестерёнка или корзина
 def icon_image(kind, px):
     """Картинка значка размером px на px: "gear" (шестерёнка) или "trash" (корзина)."""
     key = ("icon", kind, px)
     if key not in _cache:
-        big = px * SUPER  # рисуем крупнее, потом уменьшаем - края получаются гладкими
+        big = px * SUPER
         image = Image.new("RGBA", (big, big), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
-        unit = big / 24  # размер значка условно 24 клетки
+        unit = big / 24
         if kind == "gear":
             center = big / 2
             points = []
-            for tooth in range(8):  # восемь зубцов через каждые 45 градусов
+            for tooth in range(8):
                 angle = tooth * math.pi / 4
-                # у зубца четыре точки: основание слева, верх слева, верх справа, основание справа
                 for shift, radius in ((-0.21, 8), (-0.12, 10.5), (0.12, 10.5), (0.21, 8)):
                     a = angle + shift
                     points.append(
                         (center + math.cos(a) * radius * unit, center + math.sin(a) * radius * unit)
                     )
             draw.polygon(points, fill=(0, 0, 0, 255))
-            hole = 3.6 * unit  # отверстие посередине
+            hole = 3.6 * unit
             draw.ellipse(
                 (center - hole, center - hole, center + hole, center + hole), fill=(0, 0, 0, 0)
             )
-        else:  # корзина
+        else:
             black = (0, 0, 0, 255)
-            draw.rounded_rectangle(
-                (4 * unit, 6 * unit, 20 * unit, 8.2 * unit), unit, fill=black
-            )  # крышка
-            draw.rounded_rectangle(
-                (9 * unit, 3.4 * unit, 15 * unit, 6.4 * unit), unit, fill=black
-            )  # ручка
-            draw.polygon(  # корпус немного сужается книзу
+            draw.rounded_rectangle((4 * unit, 6 * unit, 20 * unit, 8.2 * unit), unit, fill=black)
+            draw.rounded_rectangle((9 * unit, 3.4 * unit, 15 * unit, 6.4 * unit), unit, fill=black)
+            draw.polygon(
                 [
                     (5.8 * unit, 9.2 * unit),
                     (18.2 * unit, 9.2 * unit),
@@ -1079,7 +953,7 @@ def icon_image(kind, px):
                 ],
                 fill=black,
             )
-            for line_x in (10, 12, 14):  # три светлые полоски на корпусе
+            for line_x in (10, 12, 14):
                 draw.line(
                     (line_x * unit, 11.4 * unit, line_x * unit, 18.4 * unit),
                     fill=(0, 0, 0, 0),
@@ -1089,14 +963,12 @@ def icon_image(kind, px):
     return _cache[key]
 
 
-# Круглая белая кнопка с тенью и значком внутри (FAB в Figma)
 class IconButton:
     """Круглая кнопка со значком. kind: "gear" (настройки) или "trash" (удалить)."""
 
     def __init__(self, board, x, y, kind, command, size=40):
         px = S(size)
         shadow = scaled(BUTTON_SHADOW)
-        # две картинки круга: обычная и чуть темнее (когда мышь над кнопкой); радиус = половина
         self.normal, pad = shape_image(px, px, px // 2, WHITE, None, 1, shadow)
         self.hover, _ = shape_image(px, px, px // 2, "#ececec", None, 1, shadow)
         self.board, self.command = board, command
@@ -1105,7 +977,7 @@ class IconButton:
             S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer, tag)
         )
         icon_size = S(24)
-        offset = (px - icon_size) // 2  # значок по центру круга
+        offset = (px - icon_size) // 2
         board.create_image(
             S(x) + offset,
             S(y) + offset,
@@ -1123,7 +995,6 @@ class IconButton:
         board.tag_bind(tag, "<ButtonRelease-1>", lambda e: self.command())
 
 
-# Логотип приложения: файл assets/logo.png нужного размера
 def logo_image(size):
     """Картинка логотипа size на size пикселей экрана (или None, если файла нет)."""
     key = ("logo", size)
@@ -1139,12 +1010,11 @@ def logo_image(size):
 def logo(board, x, y, size):
     """Кладёт логотип на холст: x, y, size - в пикселях макета."""
     picture = logo_image(S(size))
-    if picture is None:  # нет файла - окно просто работает без логотипа
+    if picture is None:
         return None
     return board.create_image(S(x), S(y), anchor="nw", image=picture, tags=(board.layer,))
 
 
-# Шапка окна: логотип, название ТСЖ и адрес. Обе строки начинаются с одной линии
 def header(board, title, subtitle, y=20):
     """Рисует логотип слева и рядом название и адрес ТСЖ, прижатые к одному левому краю.
 
@@ -1155,12 +1025,6 @@ def header(board, title, subtitle, y=20):
     return board.label(104, y + 43, 800, subtitle, "ExtraLight", 20, align="left")
 
 
-# ======================================================================
-# ЧАСТЬ 7. Таблица
-# ======================================================================
-
-
-# Ключ сортировки: числа как числа, текст - без учёта регистра
 def _sort_key(value):
     """Число сортируем как число, остальное как текст без учёта регистра."""
     try:
@@ -1169,7 +1033,6 @@ def _sort_key(value):
         return (1, 0, str(value).lower())
 
 
-# Таблица в серой панели: заголовок, строки, прокрутка и сортировка по щелчку на заголовок
 class Table:
     """Таблица в серой скруглённой панели, как в макете.
 
@@ -1178,7 +1041,6 @@ class Table:
     щелчок по строке выбирает её.
     """
 
-    # обычные размеры: высота от верха панели до линии под заголовком и высота строки
     HEADER_LINE = 54
     ROW_HEIGHT = 53
 
@@ -1200,21 +1062,15 @@ class Table:
         header_line, row_height, header_top - размеры, если таблица не обычная (окна-списки)."""
         self.board, self.on_select = board, on_select
         self.x, self.y, self.w, self.h, self.columns = x, y, w, h, columns
-        # rows - строки, offset - с какой строки показываем (прокрутка)
         self.rows, self.offset, self.selected_key = [], 0, None
-        # по какому столбцу отсортировано и в какую сторону
         self.sort_column, self.sort_reverse = None, False
         self.tag, self.layer = board.new_tag("table"), board.layer
-        # размеры этой таблицы: свои или обычные
         self.header_line = header_line or self.HEADER_LINE
         self.row_height = row_height or self.ROW_HEIGHT
-        # сколько строк помещается в панель
         self.visible = (h - self.header_line - 4) // self.row_height
 
-        # серая скруглённая панель
         board.shape(x, y, w, h, 22, PANEL_GRAY)
         self.headers = []
-        # заголовки столбцов; по щелчку - сортировка
         for number, column in enumerate(columns):
             tag = f"{self.tag}head{number}"
             item = board.centered(
@@ -1230,12 +1086,9 @@ class Table:
             self.headers.append(item)
             board.hover_cursor(tag)
             board.tag_bind(tag, "<ButtonRelease-1>", lambda e, n=number: self.sort_by(n))
-        # колесо мыши листает таблицу
         board.add_wheel_area(x, y, w, h, self.scroll)
-        # щелчок по строке - выбор
         board.tag_bind(self.tag + "row", "<ButtonRelease-1>", self._click)
 
-    # Загружаем новые строки: (ключ, значения, цвет строки)
     def set_rows(self, rows):
         """rows: список (ключ, значения столбцов, цвет подложки или None)."""
         self.rows = list(rows)
@@ -1245,7 +1098,6 @@ class Table:
         self._apply_sort()
         self.redraw()
 
-    # Сортировка по столбцу; повторный щелчок - в обратную сторону
     def sort_by(self, number):
         """Сортирует по столбцу; повторный щелчок меняет направление."""
         self.sort_reverse = not self.sort_reverse if self.sort_column == number else False
@@ -1253,7 +1105,6 @@ class Table:
         self._apply_sort()
         self.redraw()
 
-    # сортируем и рисуем стрелку в заголовке
     def _apply_sort(self):
         number = self.sort_column
         if number is not None:
@@ -1262,7 +1113,6 @@ class Table:
             arrow = (" ↓" if self.sort_reverse else " ↑") if index == number else ""
             self.board.itemconfigure(item, text=self.columns[index]["title"] + arrow)
 
-    # Прокрутка колесом
     def scroll(self, direction):
         """Прокручивает на строку вверх (-1) или вниз (1)."""
         self.offset = min(max(self.offset + direction, 0), max(0, len(self.rows) - self.visible))
@@ -1273,13 +1123,10 @@ class Table:
         self.selected_key = key
         self.redraw()
 
-    # Перерисовка: стираем строки и рисуем только видимые
     def redraw(self):
         """Перерисовывает видимые строки."""
         board, top = self.board, self.y + self.header_line
-        # удаляем старые строки
         board.delete(self.tag)
-        # цикл по видимым строкам
         for position in range(self.visible):
             index = self.offset + position
             if index >= len(self.rows):
@@ -1287,7 +1134,6 @@ class Table:
             key, values, tint = self.rows[index]
             row_top = top + position * self.row_height
             tags = (self.layer, self.tag, self.tag + "row", f"row{index}")
-            # подложка нужна, чтобы Tk ловил щелчки по пустому месту строки
             board.create_rectangle(
                 S(self.x + 1),
                 S(row_top),
@@ -1297,7 +1143,6 @@ class Table:
                 outline="",
                 tags=tags,
             )
-            # цвет строки: выбранная подсвечивается синим, иначе свой цвет
             fill = SELECT_TINT if key == self.selected_key else tint
             if fill:
                 board.create_rectangle(
@@ -1309,10 +1154,8 @@ class Table:
                     outline="",
                     tags=tags,
                 )
-            # линия между строками
             if position > 0:
                 board.hline(self.x + 1, row_top, self.w - 2, tags=(self.tag,))
-            # текст каждой ячейки по центру своего столбца
             for column, value in zip(self.columns, values):
                 text = board.fit_text(str(value), column["style"], column["size"], column["width"])
                 board.create_text(
@@ -1322,10 +1165,9 @@ class Table:
                     font=font(column["style"], column["size"]),
                     tags=tags,
                 )
-        board.hline(self.x + 1, top, self.w - 2, tags=(self.tag,))  # линия под заголовком
+        board.hline(self.x + 1, top, self.w - 2, tags=(self.tag,))
         self._draw_scrollbar()
 
-    # Ползунок прокрутки справа, если строк больше, чем помещается
     def _draw_scrollbar(self):
         if len(self.rows) <= self.visible:
             return
@@ -1345,7 +1187,6 @@ class Table:
             tags=(self.layer, self.tag),
         )
 
-    # Щелчок по строке: находим строку под курсором и вызываем on_select
     def _click(self, event):
         item = self.board.find_withtag("current")
         for tag in self.board.gettags(item[0]) if item else ():

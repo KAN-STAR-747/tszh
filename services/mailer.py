@@ -1,11 +1,9 @@
-"""Отправка писем с новым паролем.
+"""Отправка писем: новый пароль и код подтверждения регистрации.
 
-Три способа (выбирается по настройкам в mail_config.json, сверху вниз):
+Два способа (выбирается по настройкам в mail_config.json):
   1. Скрипт Google Apps Script по HTTPS (порт 443): включается, если указан apps_script_url.
-     Письмо уходит с вашей почты Gmail, регистрироваться нигде не нужно.
-  2. Почтовый сервис Brevo по HTTPS: включается, если указан brevo_api_key.
-  3. SMTP (по умолчанию Gmail): сначала порт 465 (SSL), если не вышло - порт 587 (STARTTLS).
-Способы 1 и 2 работают там, где почтовые порты закрыты сетью.
+     Письмо уходит с вашей почты Gmail и проходит там, где почтовые порты закрыты (например, VPN).
+  2. SMTP (по умолчанию Gmail): сначала порт 465 (SSL), если не вышло - порт 587 (STARTTLS).
 """
 
 import json
@@ -19,8 +17,7 @@ from email.message import EmailMessage
 from services import settings
 from services.errors import AppError
 
-BREVO_URL = "https://api.brevo.com/v3/smtp/email"
-TIMEOUT = 15  # секунд на одно соединение
+TIMEOUT = 15
 
 
 def password_letter(password):
@@ -58,34 +55,10 @@ def send_by_apps_script(config, recipient, subject, text):
     request = urllib.request.Request(
         config["apps_script_url"], data=body, headers={"Content-Type": "application/json"}
     )
-    # Google отвечает перенаправлением на страницу с результатом: urllib проходит по нему сам
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
         answer = json.load(response)
     if not answer.get("ok"):
         raise AppError(f"Скрипт Google не отправил письмо: {answer.get('error', 'неизвестно')}.")
-
-
-def send_by_brevo(config, recipient, subject, text):
-    """Отправка через HTTPS-API Brevo. Ошибки сети и отказ сервиса - OSError."""
-    body = json.dumps(
-        {
-            "sender": {"name": config["sender_name"], "email": config["smtp_user"]},
-            "to": [{"email": recipient}],
-            "subject": subject,
-            "textContent": text,
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        BREVO_URL,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "api-key": config["brevo_api_key"],
-        },
-    )
-    with urllib.request.urlopen(request, timeout=TIMEOUT):
-        pass  # ответ 2xx - письмо принято; ошибка придёт исключением HTTPError
 
 
 def send_by_smtp(config, recipient, subject, text):
@@ -110,7 +83,7 @@ def send_by_smtp(config, recipient, subject, text):
                 connection.login(config["smtp_user"], config["smtp_password"])
                 connection.send_message(message)
             return
-        except (OSError, smtplib.SMTPConnectError) as error:  # порт закрыт - пробуем следующий
+        except (OSError, smtplib.SMTPConnectError) as error:
             last_error = error
     raise last_error
 
@@ -133,20 +106,17 @@ def send_mail(recipient, subject, text):
     """
     config = settings.get_settings()
     use_script = bool(config["apps_script_url"])
-    use_brevo = bool(config["brevo_api_key"])
     smtp_ready = bool(config["smtp_user"] and config["smtp_password"])
-    if not (use_script or (use_brevo and config["smtp_user"]) or smtp_ready):
+    if not (use_script or smtp_ready):
         raise AppError("Отправка почты не настроена: заполните файл mail_config.json.")
     try:
         if use_script:
             send_by_apps_script(config, recipient, subject, text)
-        elif use_brevo:
-            send_by_brevo(config, recipient, subject, text)
         else:
             send_by_smtp(config, recipient, subject, text)
-    except urllib.error.HTTPError as error:  # сервис ответил отказом (например, неверный ключ)
+    except urllib.error.HTTPError as error:
         raise AppError(
-            f"Почтовый сервис отклонил письмо (код {error.code}). Проверьте ключ и отправителя."
+            f"Скрипт Google отклонил запрос (код {error.code}). Проверьте адрес скрипта и токен."
         ) from None
     except smtplib.SMTPAuthenticationError:
         raise AppError(
@@ -154,7 +124,7 @@ def send_mail(recipient, subject, text):
             "с адресов VPN. Также проверьте пароль приложения в mail_config.json."
         ) from None
     except (smtplib.SMTPException, OSError, ValueError) as error:
-        raise AppError(describe_error(error, use_script or use_brevo)) from None
+        raise AppError(describe_error(error, use_script)) from None
 
 
 def describe_error(error, over_https):
@@ -162,7 +132,7 @@ def describe_error(error, over_https):
 
     Args:
         error: пойманное исключение.
-        over_https (bool): письмо шло по HTTPS (скрипт Google или Brevo), а не по SMTP.
+        over_https (bool): письмо шло по HTTPS (скрипт Google), а не по SMTP.
     """
     reason = type(error).__name__
     if isinstance(error, ssl.SSLError):
@@ -174,7 +144,7 @@ def describe_error(error, over_https):
             "Не найден адрес почтового сервера: проверьте интернет и DNS (при VPN смените сервер)."
         )
     elif over_https:
-        hint = "Нет соединения с почтовым сервисом. Проверьте интернет или отключите VPN."
+        hint = "Нет соединения со скриптом Google. Проверьте интернет или отключите VPN."
     else:
         hint = (
             "Нет соединения с почтовым сервером: почтовые порты закрыты сетью или VPN. "

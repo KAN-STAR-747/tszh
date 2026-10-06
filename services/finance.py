@@ -84,7 +84,7 @@ def add_payment(apartment_id, amount_text, date_text, comment):
         raise AppError("Выберите квартиру.")
     amount = check.rubles_to_kopecks(amount_text, "Сумма")
     paid_at = check.parse_date(date_text, "Дата оплаты")
-    comment = check.check_length(comment, check.MAX_COMMENT, "Комментарий")  # не длиннее 50
+    comment = check.check_length(comment, check.MAX_COMMENT, "Комментарий")
     db.execute(
         "INSERT INTO payment (apartment_id, amount, paid_at, comment) VALUES (?, ?, ?, ?)",
         (apartment_id, amount, paid_at, comment),
