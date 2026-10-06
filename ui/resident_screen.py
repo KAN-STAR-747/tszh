@@ -49,11 +49,11 @@ class ResidentScreen:
         chairman = auth.get_chairman()
         if chairman is not None:
             contacts = f"Председатель: {short_name(chairman['full_name'])} * {chairman['phone']}"
-            board.label(33, 104, 700, contacts, "ExtraLight", 20, align="left")
+            board.label(33, 108, 700, contacts, "ExtraLight", 20, align="left")
         if not auth.is_owner(user):
             board.label(
                 988,
-                104,
+                108,
                 546,
                 f"Собственник: {self.apartment['owner_name']}",
                 "ExtraLight",
@@ -63,28 +63,31 @@ class ResidentScreen:
 
         self.debt_layer_widgets = None
         board.shape(33, 137, 903, 108, 22, "#ffcbae")
-        board.label(41, 151, 400, f"Задолженность на {dates.today_text()}", "Light", 24)
+        board.label(
+            61, 151, 400, f"Задолженность на {dates.today_text()}", "Light", 24, align="left"
+        )
         board.label(31, 277, 489, "История начислений и оплат", "Regular", 32)
         self.table = kit.Table(board, 31, 330, 905, 433, self.HISTORY_COLUMNS)
 
         board.shape(988, 137, 546, 353, 22, kit.PANEL_GRAY)
-        board.label(937, 151, 291, "Новая заявка", "Bold", 20)
+        board.label(1016, 151, 400, "Новая заявка", "Bold", 20, align="left")
         board.label(
-            1012,
+            1016,
             194,
-            382,
+            490,
             f"Квартира {self.apartment['number']} подставлена автоматически",
             "ExtraLight",
             20,
+            align="left",
         )
-        board.label(961, 245, 188, "Тема", "Regular", 16)
-        self.title_entry = kit.EntryBox(board, 1019, 274, 460, 42, max_length=50)
-        board.label(961, 329, 188, "Описание", "Regular", 16)
-        self.description = kit.TextBox(board, 1019, 367, 460, 42, max_length=250)
+        board.label(1035, 245, 400, "Тема", "Regular", 16, align="left")
+        self.title_entry = kit.EntryBox(board, 1031, 274, 460, 42, max_length=50)
+        board.label(1035, 329, 400, "Описание", "Regular", 16, align="left")
+        self.description = kit.TextBox(board, 1031, 367, 460, 42, max_length=250)
         kit.Button(board, 1153, 439, 216, 35, "Отправить заявку", self.send_request)
 
         board.shape(988, 528, 546, 310, 22, kit.PANEL_GRAY)
-        board.label(937, 545, 291, "Мои заявки", "Bold", 20)
+        board.label(1016, 545, 400, "Мои заявки", "Bold", 20, align="left")
         board.add_wheel_area(988, 528, 546, 310, self.scroll_requests)
         self.refresh()
 
@@ -98,9 +101,13 @@ class ResidentScreen:
         board.clear_layer("data")
         board.set_layer("data")
         summary = finance.get_resident_summary(self.apartment["apartment_id"])
-        board.label(-26, 187, 399, f"{money(summary['debt'])} руб.", "Medium", 36)
-        board.label(550, 158, 400, f"Начислено: {money(summary['charged'])} руб.", "Light", 24)
-        board.label(550, 199, 400, f"Оплачено: {money(summary['paid'])} руб.", "Light", 24)
+        board.label(61, 187, 400, f"{money(summary['debt'])} руб.", "Medium", 36, align="left")
+        board.label(
+            600, 158, 320, f"Начислено: {money(summary['charged'])} руб.", "Light", 24, align="left"
+        )
+        board.label(
+            600, 199, 320, f"Оплачено: {money(summary['paid'])} руб.", "Light", 24, align="left"
+        )
 
         rows = []
         for index, (stamp, operation, purpose, amount) in enumerate(summary["history"]):

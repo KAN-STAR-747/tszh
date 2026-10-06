@@ -103,10 +103,10 @@ class ApartmentsTab:
 
     COLUMNS = [
         {"title": "Кв.", "cx": 37.5, "style": "Light", "size": 24, "width": 70},
-        {"title": "Площадь, м2", "cx": 168.5, "style": "Light", "size": 24, "width": 150},
-        {"title": "Собственник", "cx": 369.5, "style": "Light", "size": 20, "width": 250},
-        {"title": "Телефон", "cx": 560.5, "style": "Light", "size": 20, "width": 170},
-        {"title": "Член ТСЖ", "cx": 751.5, "style": "Light", "size": 20, "width": 150},
+        {"title": "Площадь, м2", "cx": 160, "style": "Light", "size": 24, "width": 120},
+        {"title": "Собственник", "cx": 380, "style": "Light", "size": 20, "width": 320},
+        {"title": "Телефон", "cx": 612, "style": "Light", "size": 20, "width": 140},
+        {"title": "Член ТСЖ", "cx": 752, "style": "Light", "size": 20, "width": 130},
         {"title": "Долг, руб.", "cx": 933.5, "style": "Light", "size": 24, "width": 150},
     ]
 
@@ -447,7 +447,7 @@ class FinanceTab:
         kit.Button(board, 432, 228, 188, 35, "Начислить за месяц", self.charge_month)
         kit.Button(board, 640, 228, 210, 35, "Новый целевой сбор", self.open_target, "plain")
         tariff = check.kopecks_to_text(hoa.get_tariff())
-        board.label(850, 229, 216, f"Тариф {tariff} руб./м2", "ExtraLight", 20)
+        board.label(870, 233, 300, f"Тариф {tariff} руб./м2", "ExtraLight", 20, align="left")
         kit.Button(board, 1220, 229, 156, 35, "Целевые сборы", self.open_targets, "plain")
         kit.Button(board, 1395, 229, 119, 35, "Оплаты", self.open_payments, "plain")
 
@@ -459,26 +459,26 @@ class FinanceTab:
         """Правая панель «Внести оплату»."""
         board = self.board
         board.shape(1102, 292, 445, 503, 22, kit.PANEL_GRAY)
-        board.label(1062, 327, 291, "Внести оплату", "Bold", 20)
+        board.label(1130, 327, 380, "Внести оплату", "Bold", 20, align="left")
         rows = list(apartments.get_apartments())
         self.apartment_ids = [row["apartment_id"] for row in rows]
-        board.label(1107, 368, 145, "Квартира", "Regular", 16)
+        board.label(1151, 368, 355, "Квартира", "Regular", 16, align="left")
         self.payment_apartment = kit.DropBox(
             board,
-            1135,
+            1147,
             397,
             355,
             42,
             [f"{row['number']} * {short_name(row['owner_name'])}" for row in rows],
             index=0,
         )
-        board.label(1107, 443, 167, "Сумма, руб.", "Regular", 16)
-        self.payment_amount = kit.EntryBox(board, 1135, 472, 355, 42)
-        board.label(1107, 526, 180, "Дата оплаты", "Regular", 16)
-        self.payment_date = kit.EntryBox(board, 1135, 555, 355, 42, text=dates.today_text())
-        board.label(1107, 608, 180, "Комментарий", "Regular", 16)
-        self.payment_comment = kit.EntryBox(board, 1135, 637, 355, 42, max_length=50)
-        kit.Button(board, 1218, 725, 216, 35, "Сохранить оплату", self.save_payment)
+        board.label(1151, 446, 355, "Сумма, руб.", "Regular", 16, align="left")
+        self.payment_amount = kit.EntryBox(board, 1147, 475, 355, 42)
+        board.label(1151, 524, 355, "Дата оплаты", "Regular", 16, align="left")
+        self.payment_date = kit.EntryBox(board, 1147, 553, 355, 42, text=dates.today_text())
+        board.label(1151, 602, 355, "Комментарий", "Regular", 16, align="left")
+        self.payment_comment = kit.EntryBox(board, 1147, 631, 355, 42, max_length=50)
+        kit.Button(board, 1217, 715, 216, 35, "Сохранить оплату", self.save_payment)
 
     def refresh_table(self):
         """Заполняет таблицу данными за выбранный месяц."""
@@ -553,82 +553,67 @@ class FinanceTab:
 class ReportsTab:
     """Вкладка «Отчёты»: три отчёта с выгрузкой в Excel."""
 
+    CARD_WIDTH = 445
+    CARD_TOP = 242
+    CARD_HEIGHT = 307
+
+    def card(self, x, title, text):
+        """Рисует карточку отчёта: заголовок и описание слева. Возвращает левый край содержимого."""
+        board = self.board
+        board.shape(x, self.CARD_TOP, self.CARD_WIDTH, self.CARD_HEIGHT, 22, kit.PANEL_GRAY)
+        left = x + 28
+        board.label(left, 266, 389, title, "Bold", 20, align="left")
+        board.label(left, 310, 389, text, "Regular", 16, align="left", wrap=True)
+        return left
+
+    def button(self, x, command):
+        """Кнопка «Выгрузить в Excel» по центру карточки; у всех карточек на одной высоте."""
+        left = x + (self.CARD_WIDTH - 216) // 2
+        kit.Button(self.board, left, 495, 216, 35, "Выгрузить в Excel", command)
+
     def __init__(self, screen):
         self.screen = screen
         self.board = board = screen.board
 
-        for x, y, h in [(51, 242, 307), (576, 242, 307), (1101, 239, 310)]:
-            board.shape(x, y, 445, h, 22, kit.PANEL_GRAY)
-
-        board.label(-10, 262, 291, "Должники", "Bold", 20)
-        board.label(
-            110,
-            320,
-            328,
-            "Квартиры с долгом на текущую дату: номер, собственник, " "телефон, сумма долга.",
-            "Regular",
-            16,
-            wrap=True,
+        x = 51
+        self.card(
+            x,
+            "Должники",
+            "Квартиры с долгом на текущую дату: номер, собственник, телефон, сумма долга.",
         )
-        kit.Button(
-            board,
-            153,
-            497,
-            216,
-            35,
-            "Выгрузить в Excel",
-            lambda: self.export("Должники", reports.export_debtors),
-        )
+        self.button(x, lambda: self.export("Должники", reports.export_debtors))
 
-        board.label(552, 262, 291, "Заявки за период", "Bold", 20)
-        board.label(
-            635,
-            295,
-            328,
+        x = 576
+        left = self.card(
+            x,
+            "Заявки за период",
             "Тема, квартира, источник, статус, исполнитель, даты создания и закрытия.",
-            "Regular",
-            16,
-            wrap=True,
         )
-        board.label(651, 408, 56, "с", "Medium", 20)
-        self.date_from = kit.EntryBox(board, 635, 438, 149, 42, text=dates.month_start_text())
-        board.label(843, 408, 51, "по", "Medium", 20)
-        self.date_to = kit.EntryBox(board, 831, 438, 149, 42, text=dates.today_text())
-        kit.Button(
-            board,
-            707,
-            495,
-            216,
-            35,
-            "Выгрузить в Excel",
-            lambda: self.export("Заявки", self.export_requests),
-        )
+        board.label(left + 4, 400, 100, "с", "Medium", 20, align="left")
+        self.date_from = kit.EntryBox(board, left, 432, 180, 42, text=dates.month_start_text())
+        board.label(left + 209 + 4, 400, 100, "по", "Medium", 20, align="left")
+        self.date_to = kit.EntryBox(board, left + 209, 432, 180, 42, text=dates.today_text())
+        self.button(x, lambda: self.export("Заявки", self.export_requests))
 
-        board.label(1083, 256, 291, "Реестр членов ТСЖ", "Bold", 20)
-        board.label(
-            1163,
-            290,
-            328,
+        x = 1101
+        left = self.card(
+            x,
+            "Реестр членов ТСЖ",
             "Квартиры, собственники которых - члены ТСЖ: номер, ФИО, телефон, площадь.",
-            "Regular",
-            16,
-            wrap=True,
         )
         total, members = apartments.get_summary()
         member_word = dates.plural(members, "член", "члена", "членов")
         owner_word = dates.plural(total, "собственника", "собственников", "собственников")
         board.label(
-            1110, 386, 328, f"{members} {member_word} из {total} {owner_word}", "Regular", 16
+            left,
+            420,
+            389,
+            f"{members} {member_word} из {total} {owner_word}",
+            "Medium",
+            16,
+            align="left",
         )
-        kit.Button(
-            board,
-            1219,
-            495,
-            216,
-            35,
-            "Выгрузить в Excel",
-            lambda: self.export("Члены_ТСЖ", reports.export_members),
-        )
+        self.button(x, lambda: self.export("Члены_ТСЖ", reports.export_members))
 
     def export_requests(self, file_path):
         """Выгружает заявки за период из полей «с» и «по»."""

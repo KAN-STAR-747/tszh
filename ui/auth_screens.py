@@ -38,15 +38,15 @@ class LoginScreen:
         self.app = app
         self.board = board
         # label(x, y, ширина, текст, шрифт, размер) - надпись; координаты берём из Figma
-        board.label(32, 83, 335, "Вход в систему", "Bold", 32)
-        self.address_item = board.label(49, 126, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
+        board.label(0, 83, 521, "Вход в систему", "Bold", 32)
+        self.address_item = board.label(40, 126, 441, hoa_subtitle(), "ExtraLight", 20, wrap=True)
 
-        board.label(53, 215, 250, "Электронная почта", "Regular", 16)
+        board.label(87, 215, 355, "Электронная почта", "Regular", 16, align="left")
         # поле ввода: x, y, ширина, высота
-        self.login = kit.EntryBox(board, 81, 244, 355, 42)
-        board.label(53, 315, 123, "Пароль", "Regular", 16)
+        self.login = kit.EntryBox(board, 83, 244, 355, 42)
+        board.label(87, 315, 355, "Пароль", "Regular", 16, align="left")
         # show="*" - вместо символов пароля показываются звёздочки
-        self.password = kit.EntryBox(board, 81, 344, 355, 42, show="*")
+        self.password = kit.EntryBox(board, 83, 344, 355, 42, show="*")
         # по нажатию Enter тоже пробуем войти
         self.login.on_enter(self.try_login)
         self.password.on_enter(self.try_login)
@@ -55,16 +55,16 @@ class LoginScreen:
         board.set_layer("message")
         if message:
             # цветная плашка с подсказкой
-            kit.note(board, 81, 394, 359, 51, message, kind)
+            kit.note(board, 83, 394, 355, 51, message, kind)
         else:
             # пока сообщения нет, на его месте стоит ссылка (как в макете)
-            kit.link(board, 153, 394, 216, "восстановить аккаунт", app.show_recovery_choice)
+            kit.link(board, 152, 394, 216, "восстановить аккаунт", app.show_recovery_choice)
         board.set_layer("base")
 
         # кнопка: x, y, ширина, высота, текст, функция по клику
-        kit.Button(board, 164, 495, 216, 35, "Войти", self.try_login)
+        kit.Button(board, 152, 495, 216, 35, "Войти", self.try_login)
         # ссылка под кнопкой
-        kit.link(board, 168, 538, 216, "зарегистрироваться", app.show_resident_register)
+        kit.link(board, 152, 538, 216, "зарегистрироваться", app.show_resident_register)
         # курсор сразу в поле логина
         self.login.focus()
 
@@ -77,7 +77,7 @@ class LoginScreen:
         # стираем старое сообщение
         self.board.clear_layer("message")
         self.board.set_layer("message")
-        kit.note(self.board, 81, 394, 359, 51, text, "error")
+        kit.note(self.board, 83, 394, 355, 51, text, "error")
         self.board.set_layer("base")
 
     def try_login(self):
@@ -123,30 +123,30 @@ class VerificationScreen:
         """
         self.app, self.board = app, board
         self.kind, self.data, self.login = kind, data, login
-        board.label(0, 100, 496, "Подтверждение почты", "Bold", 32)
+        board.label(0, 100, 521, "Подтверждение почты", "Bold", 32)
         board.label(
-            49,
+            60,
             160,
-            400,
+            401,
             f"Мы отправили код из 4 цифр на {login}. Введите его, чтобы завершить регистрацию.",
             "ExtraLight",
             20,
             wrap=True,
         )
         self.code = dialogs.add_field(
-            board, 53, 290, 250, "Код из письма", 81, 319, 355, max_length=4
+            board, 53, 290, 250, "Код из письма", 83, 319, 355, max_length=4
         )
         self.code.on_enter(self.confirm)
-        kit.Button(board, 150, 440, 119, 35, "Назад", self.back, "plain")
-        kit.Button(board, 281, 440, 175, 35, "Подтвердить", self.confirm)
-        kit.link(board, 153, 500, 216, "отправить код ещё раз", self.resend)
+        kit.Button(board, 106, 440, 119, 35, "Назад", self.back, "plain")
+        kit.Button(board, 239, 440, 175, 35, "Подтвердить", self.confirm)
+        kit.link(board, 152, 500, 216, "отправить код ещё раз", self.resend)
         self.code.focus()
 
     def show_note(self, text, kind):
         """Плашка с сообщением под полем: красная ("error") или голубая ("info")."""
         self.board.clear_layer("message")
         self.board.set_layer("message")
-        kit.note(self.board, 81, 380, 359, 51, text, kind)
+        kit.note(self.board, 83, 380, 355, 51, text, kind)
         self.board.set_layer("base")
 
     def back(self):
@@ -199,16 +199,16 @@ class RecoveryChoiceScreen:
         self.board = board
         # None - ничего не выбрано, True - председатель, False - жилец
         self.chairman = None
-        board.label(0, 152, 496, "Чей аккаунт восстановить", "Bold", 32)
+        board.label(0, 152, 521, "Чей аккаунт восстановить", "Bold", 32)
         kit.Button(board, 220, 341, 119, 35, "Отмена", app.show_login, "plain")
-        kit.Button(board, 358, 341, 131, 35, "Далее", self.next)
+        kit.Button(board, 353, 341, 131, 35, "Далее", self.next)
         self.draw_choice()
 
     def draw_choice(self):
         """Рисует кнопки выбора: выбранная синяя, вторая белая (пока не выбрано - обе синие)."""
         self.board.clear_layer("choice")
         self.board.set_layer("choice")
-        for x, text, is_chairman in ((39, "Председатель", True), (273, "Жилец", False)):
+        for x, text, is_chairman in ((38, "Председатель", True), (268, "Жилец", False)):
             kind = (
                 "plain" if self.chairman is not None and self.chairman != is_chairman else "primary"
             )
@@ -228,7 +228,7 @@ class RecoveryChoiceScreen:
         if self.chairman is None:
             self.board.clear_layer("message")
             self.board.set_layer("message")
-            kit.note(self.board, 81, 394, 359, 51, "Выберите, чей аккаунт восстановить", "error")
+            kit.note(self.board, 83, 394, 355, 51, "Выберите, чей аккаунт восстановить", "error")
             self.board.set_layer("base")
             return
         self.app.show_recovery(self.chairman)
@@ -248,29 +248,29 @@ class RecoveryScreen:
         self.app = app
         self.board = board
         self.chairman = chairman
-        board.label(0, 100, 496, "Восстановление аккаунта", "Bold", 32)
+        board.label(0, 100, 521, "Восстановление аккаунта", "Bold", 32)
         who = "председателя" if chairman else "жильца"
         board.label(
-            49,
+            60,
             160,
-            400,
+            401,
             f"Аккаунт {who}. Новый пароль придёт на электронную почту, "
             "которую вы указали при регистрации.",
             "ExtraLight",
             20,
             wrap=True,
         )
-        self.email = dialogs.add_field(board, 53, 270, 250, "Электронная почта", 81, 299, 355)
+        self.email = dialogs.add_field(board, 53, 270, 250, "Электронная почта", 83, 299, 355)
         self.email.on_enter(self.send)
-        kit.Button(board, 150, 440, 119, 35, "Отмена", app.show_login, "plain")
-        kit.Button(board, 281, 440, 175, 35, "Отправить пароль", self.send)
+        kit.Button(board, 106, 440, 119, 35, "Отмена", app.show_login, "plain")
+        kit.Button(board, 239, 440, 175, 35, "Отправить пароль", self.send)
         self.email.focus()
 
     def show_note(self, text, kind):
         """Плашка с сообщением под полем: красная ("error") или голубая ("info")."""
         self.board.clear_layer("message")
         self.board.set_layer("message")
-        kit.note(self.board, 81, 360, 359, 51, text, kind)
+        kit.note(self.board, 83, 360, 355, 51, text, kind)
         self.board.set_layer("base")
 
     def send(self):
@@ -294,32 +294,30 @@ class ResidentRegisterScreen:
     def __init__(self, app, board, data=None):
         self.app = app
         self.board = board
-        board.label(62, 68, 335, "Регистрация жильца", "Bold", 32)
-        self.address_item = board.label(48, 111, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
+        board.label(0, 68, 521, "Регистрация жильца", "Bold", 32)
+        self.address_item = board.label(40, 111, 441, hoa_subtitle(), "ExtraLight", 20, wrap=True)
 
         # словарь полей формы: ключ совпадает с ключом данных для сервиса
         self.fields = {
-            "full_name": dialogs.add_field(board, 62, 196, 111, "ФИО", 90, 225, 355),
-            "phone": dialogs.add_field(board, 68, 276, 111, "Телефон", 90, 305, 355),
+            "full_name": dialogs.add_field(board, 0, 0, 0, "ФИО", 83, 225, 355),
+            "phone": dialogs.add_field(board, 0, 0, 0, "Телефон", 83, 309, 355),
             # квартира - обычное поле: жилец вводит номер сам
-            "apartment_number": dialogs.add_field(board, 76, 359, 111, "Квартира", 90, 390, 355),
-            "login": dialogs.add_field(board, 62, 441, 250, "Электронная почта", 90, 470, 355),
-            "password": dialogs.add_field(board, 62, 514, 137, "Пароль", 90, 543, 355, show="*"),
-            "password2": dialogs.add_field(
-                board, 68, 583, 182, "Повтор пароля", 96, 612, 355, show="*"
-            ),
+            "apartment_number": dialogs.add_field(board, 0, 0, 0, "Квартира", 83, 393, 355),
+            "login": dialogs.add_field(board, 0, 0, 0, "Электронная почта", 83, 477, 355),
+            "password": dialogs.add_field(board, 0, 0, 0, "Пароль", 83, 561, 355, show="*"),
+            "password2": dialogs.add_field(board, 0, 0, 0, "Повтор пароля", 83, 645, 355, show="*"),
         }
         kit.note(
             board,
-            96,
-            668,
-            359,
+            83,
+            703,
+            355,
             51,
             "После регистрации аккаунт должен\nподтвердить председатель ТСЖ",
             "info",
         )
-        kit.Button(board, 168, 750, 216, 35, "Зарегистрироваться", self.register)
-        kit.link(board, 173, 799, 216, "войти", app.show_login)
+        kit.Button(board, 152, 775, 216, 35, "Зарегистрироваться", self.register)
+        kit.link(board, 152, 824, 216, "войти", app.show_login)
         for key, value in (data or {}).items():  # вернулись с экрана ввода кода: поля заполнены
             if key in self.fields:
                 self.fields[key].set(value)
@@ -344,33 +342,34 @@ class ChairmanRegisterScreen:
     def __init__(self, app, board, data=None):
         self.app = app
         self.board = board
-        board.label(52, 68, 525, "Регистрация председателя ТСЖ", "Bold", 32)
+        board.label(77, 68, 807, "Регистрация председателя ТСЖ", "Bold", 32, align="left")
         board.label(
-            52,
+            77,
             111,
-            713,
+            807,
             "Данные ТСЖ ещё не заполнены. Укажите данные председателя дома.",
             "ExtraLight",
             20,
+            align="left",
         )
         # голубая панель-подложка под группой полей
-        board.shape(77, 166, 807, 298, 15, kit.PANEL_BLUE)
-        board.shape(76, 496, 807, 322, 15, kit.PANEL_BLUE)
-        board.label(43, 176, 304, "Председатель", "Bold", 24)
-        board.label(36, 503, 316, "Данные ТСЖ", "Bold", 24)
+        board.shape(77, 166, 807, 306, 15, kit.PANEL_BLUE)
+        board.shape(77, 496, 807, 322, 15, kit.PANEL_BLUE)
+        board.label(111, 176, 400, "Председатель", "Bold", 24, align="left")
+        board.label(111, 503, 400, "Данные ТСЖ", "Bold", 24, align="left")
 
         # короткое имя для функции создания «подпись + поле»
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, 77, 219, 111, "ФИО", 105, 248, 355),
-            "phone": add(board, 460, 219, 136, "Телефон", 488, 248, 355),
-            "login": add(board, 77, 300, 250, "Электронная почта", 105, 329, 738),
-            "password": add(board, 77, 376, 136, "Пароль", 105, 405, 355, show="*"),
-            "password2": add(board, 459, 376, 209, "Повторите пароль", 487, 405, 355, show="*"),
-            "hoa_name": add(board, 76, 546, 224, "Наименование ТСЖ", 104, 575, 738),
-            "inn": add(board, 76, 621, 111, "ИНН", 104, 650, 355),
-            "rate": add(board, 459, 621, 179, "Тариф за 1 м2, руб.", 487, 650, 355),
-            "address": add(board, 76, 696, 158, "Адрес дома", 104, 725, 738),
+            "full_name": add(board, 0, 0, 0, "ФИО", 111, 248, 355),
+            "phone": add(board, 0, 0, 0, "Телефон", 494, 248, 355),
+            "login": add(board, 0, 0, 0, "Электронная почта", 111, 332, 738),
+            "password": add(board, 0, 0, 0, "Пароль", 111, 416, 355, show="*"),
+            "password2": add(board, 0, 0, 0, "Повторите пароль", 494, 416, 355, show="*"),
+            "hoa_name": add(board, 0, 0, 0, "Наименование ТСЖ", 111, 575, 738),
+            "inn": add(board, 0, 0, 0, "ИНН", 111, 659, 355),
+            "rate": add(board, 0, 0, 0, "Тариф за 1 м2, руб.", 494, 659, 355),
+            "address": add(board, 0, 0, 0, "Адрес дома", 111, 743, 738),
         }
         # «Отмена» закрывает программу: без председателя работать нельзя
         kit.Button(board, 539, 850, 119, 35, "Отмена", app.root.destroy, "plain")

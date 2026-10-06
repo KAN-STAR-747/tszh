@@ -54,8 +54,14 @@ def _message(parent, title, text, icon, buttons):
     dialog.result = None
     board.label(16, 13, 269, title, "Medium", 16, align="left")
     board.hline(0, 52, 521)
-    board.label(16, 74, 30, icon, "Regular", 36)
-    board.label(100, 73, 353, text, "Regular", 16, wrap=True)
+    # круглый значок слева (красный для ошибки, синий для остальных), текст справа от него;
+    # и значок, и текст стоят по вертикали в середине области между линией и кнопками
+    color = "#ff5b5b" if icon == "!" else kit.BLUE
+    board.shape(36, 114, 56, 56, 28, color)
+    board.centered(36, 114, 56, 56, icon, "Bold", 32, color=kit.WHITE)
+    text_item = board.label(116, 53, 370, text, "Regular", 16, align="left", wrap=True)
+    top, bottom = board.bbox(text_item)[1], board.bbox(text_item)[3]
+    board.move(text_item, 0, kit.S(142) - (top + bottom) / 2)
 
     def finish(result):
         dialog.result = result
@@ -108,8 +114,12 @@ def comma(kopecks):
 def add_field(
     board, label_x, label_y, label_w, caption, x, y, w, show="", text="", max_length=None
 ):
-    """Подпись (шрифт 16) и поле ввода под ней - как в макете. max_length - предел длины."""
-    board.label(label_x, label_y, label_w, caption, "Regular", 16)
+    """Подпись (шрифт 16) и поле ввода под ней. max_length - предел длины.
+
+    Подпись всегда стоит над полем по его левому краю на одном и том же расстоянии, поэтому
+    координаты подписи (label_x, label_y, label_w) оставлены только для совместимости.
+    """
+    board.label(x + 4, y - 29, w, caption, "Regular", 16, align="left")
     return kit.EntryBox(board, x, y, w, 42, show=show, text=text, max_length=max_length)
 
 
@@ -129,24 +139,24 @@ class ApartmentDialog(Modal):
         self.apartment_id = apartment_id
         board = self.board
 
-        board.label(3, 42, 335, title, "Bold", 32)
-        self.number = add_field(board, 19, 113, 203, "Номер квартиры", 51, 142, 403)
-        self.area = add_field(board, 19, 197, 173, "Площадь, м2", 51, 226, 403)
-        self.owner = add_field(board, 19, 281, 226, "ФИО собственника", 51, 310, 403)
-        self.phone = add_field(board, 19, 365, 258, "Телефон собственника", 51, 394, 403)
-        self.member = kit.CheckBox(board, 62, 448)
-        board.label(65, 449, 258, "Собственник - член ТСЖ", "Regular", 16)
+        board.label(0, 42, 521, title, "Bold", 32)
+        self.number = add_field(board, 19, 113, 203, "Номер квартиры", 59, 142, 403)
+        self.area = add_field(board, 19, 197, 173, "Площадь, м2", 59, 226, 403)
+        self.owner = add_field(board, 19, 281, 226, "ФИО собственника", 59, 310, 403)
+        self.phone = add_field(board, 19, 365, 258, "Телефон собственника", 59, 394, 403)
+        self.member = kit.CheckBox(board, 63, 448)
+        board.label(99, 449, 300, "Собственник - член ТСЖ", "Regular", 16, align="left")
         kit.note(
             board,
-            50,
+            59,
             500,
-            404,
+            403,
             62,
             "Номер квартиры должен быть уникальным.\nПлощадь - положительное число.",
             "info",
         )
-        kit.Button(board, 185, 659, 119, 35, "Отмена", self.destroy, "plain")
-        kit.Button(board, 323, 659, 131, 35, "Сохранить", self.save)
+        kit.Button(board, 193, 659, 119, 35, "Отмена", self.destroy, "plain")
+        kit.Button(board, 331, 659, 131, 35, "Сохранить", self.save)
 
         if apartment_id is not None:
             row = apartments.get_apartment(apartment_id)
@@ -192,30 +202,30 @@ class RequestDialog(Modal):
         self.on_saved = on_saved
         board = self.board
 
-        board.label(3, 42, 335, "Новая заявка", "Bold", 32)
-        board.label(-9, 110, 203, "Квартира", "Regular", 16)
+        board.label(0, 42, 521, "Новая заявка", "Bold", 32)
+        board.label(63, 113, 300, "Квартира", "Regular", 16, align="left")
         self.apartment_rows = list(apartments.get_apartments())
 
         names = [self.COMMON_PROPERTY] + [
             f"Кв. {row['number']} - {row['owner_name']}" for row in self.apartment_rows
         ]
-        self.apartment_box = kit.DropBox(board, 51, 142, 403, 42, names)
+        self.apartment_box = kit.DropBox(board, 59, 142, 403, 42, names)
 
-        board.label(19, 197, 173, "Источник", "Regular", 16)
+        board.label(63, 197, 300, "Источник", "Regular", 16, align="left")
 
         self.source = kit.RadioGroup(
-            board, [("Звонок", "Звонок", 73, 246), ("Приложение", "Приложение", 204, 246)]
+            board, [("Звонок", "Звонок", 81, 246), ("Приложение", "Приложение", 212, 246)]
         )
 
-        self.title_entry = add_field(board, 19, 281, 123, "Тема", 51, 310, 403, max_length=50)
-        board.label(19, 365, 158, "Описание", "Regular", 16)
-        self.description = kit.TextBox(board, 51, 394, 403, 42, max_length=250)
+        self.title_entry = add_field(board, 19, 281, 123, "Тема", 59, 310, 403, max_length=50)
+        board.label(63, 365, 300, "Описание", "Regular", 16, align="left")
+        self.description = kit.TextBox(board, 59, 394, 403, 42, max_length=250)
         self.executor = add_field(
-            board, 19, 447, 358, "Исполнитель (можно указать позже)", 51, 476, 403, max_length=25
+            board, 19, 447, 358, "Исполнитель (можно указать позже)", 59, 476, 403, max_length=25
         )
-        board.label(-99, 525, 713, "Заявка будет создана со статусом «Новая»", "ExtraLight", 20)
-        kit.Button(board, 185, 659, 119, 35, "Отмена", self.destroy, "plain")
-        kit.Button(board, 323, 659, 152, 35, "Создать заявку", self.save)
+        board.label(0, 548, 521, "Заявка будет создана со статусом «Новая»", "ExtraLight", 20)
+        kit.Button(board, 177, 659, 119, 35, "Отмена", self.destroy, "plain")
+        kit.Button(board, 310, 659, 152, 35, "Создать заявку", self.save)
         self.title_entry.focus()
 
     def save(self):
@@ -252,25 +262,25 @@ class TargetChargeDialog(Modal):
         self.on_saved = on_saved
         board = self.board
 
-        board.label(3, 42, 418, "Новый целевой сбор", "Bold", 32)
-        self.purpose = add_field(board, 19, 113, 166, "Назначение", 51, 142, 403, max_length=50)
-        self.amount = add_field(board, 19, 197, 258, "Сумма с квартиры, руб.", 51, 226, 403)
+        board.label(0, 42, 521, "Новый целевой сбор", "Bold", 32)
+        self.purpose = add_field(board, 19, 113, 166, "Назначение", 59, 142, 403, max_length=50)
+        self.amount = add_field(board, 19, 197, 258, "Сумма с квартиры, руб.", 59, 226, 403)
         self.amount.on_change(self.update_preview)
-        board.label(19, 281, 129, "Месяц", "Regular", 16)
+        board.label(63, 281, 300, "Месяц", "Regular", 16, align="left")
         self.months = dates.get_month_list()
         self.month_box = kit.DropBox(
             board,
-            51,
+            59,
             310,
             403,
             42,
             [dates.month_to_text(m) for m in self.months],
             index=self.months.index(dates.current_month()),
         )
-        self.preview = kit.note(board, 51, 384, 404, 62, "", "info")
+        self.preview = kit.note(board, 59, 384, 403, 62, "", "info")
         self.update_preview()
-        kit.Button(board, 158, 488, 119, 35, "Отмена", self.destroy, "plain")
-        kit.Button(board, 292, 488, 163, 35, "Начислить сбор", self.save)
+        kit.Button(board, 166, 488, 119, 35, "Отмена", self.destroy, "plain")
+        kit.Button(board, 299, 488, 163, 35, "Начислить сбор", self.save)
         self.purpose.focus()
 
     def update_preview(self):
@@ -317,12 +327,13 @@ class ListDialog(Modal):
         """
         super().__init__(parent, title, *size)
         board = self.board
-        board.label(title_box[0], 30, title_box[1], title, "Bold", 32)
+        board.label(32, 30, size[0] - 64, title, "Bold", 32, align="left")
         table = kit.Table(
             board, 32, 103, size[0] - 50, 354, columns, header_line=36, row_height=44, header_top=3
         )
         table.set_rows(rows)
-        kit.Button(board, back_x, size[1] - 94, 119, 35, "Назад", self.destroy, "plain")
+        # кнопка у правого края таблицы (таблица занимает ширину кадра минус поля 32 и 18)
+        kit.Button(board, size[0] - 18 - 119, size[1] - 94, 119, 35, "Назад", self.destroy, "plain")
 
 
 def short_date(stamp):

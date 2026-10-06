@@ -21,53 +21,51 @@ class ChairmanEditScreen:
         info = hoa.get_hoa()
 
         # заголовок и подсказка
-        board.label(39, 64, 525, "Редактирование данных ТСЖ", "Bold", 32)
-        board.label(52, 111, 713, "Измените данные председателя и данные ТСЖ.", "ExtraLight", 20)
+        board.label(77, 68, 807, "Редактирование данных ТСЖ", "Bold", 32, align="left")
+        board.label(
+            77,
+            111,
+            807,
+            "Измените данные председателя и данные ТСЖ.",
+            "ExtraLight",
+            20,
+            align="left",
+        )
         # три синие панели: председатель, логин с паролем, данные ТСЖ
         board.shape(77, 166, 807, 134, 15, kit.PANEL_BLUE)
-        board.shape(76, 320, 807, 157, 15, kit.PANEL_BLUE)
-        board.shape(76, 496, 807, 322, 15, kit.PANEL_BLUE)
-        board.label(43, 176, 304, "Председатель", "Bold", 24)
-        board.label(36, 503, 316, "Данные ТСЖ", "Bold", 24)
+        board.shape(77, 314, 807, 186, 15, kit.PANEL_BLUE)
+        board.shape(77, 514, 807, 307, 15, kit.PANEL_BLUE)
+        board.label(111, 176, 400, "Председатель", "Bold", 24, align="left")
+        board.label(111, 521, 400, "Данные ТСЖ", "Bold", 24, align="left")
 
         add = dialogs.add_field  # короткое имя для функции «подпись + поле»
         self.fields = {
-            "full_name": add(board, 77, 219, 111, "ФИО", 105, 248, 355, text=user["full_name"]),
+            "full_name": add(board, 0, 0, 0, "ФИО", 111, 248, 355, text=user["full_name"]),
             "phone": add(
-                board, 460, 219, 136, "Телефон", 488, 248, 355, text=user["phone"], max_length=20
+                board, 0, 0, 0, "Телефон", 494, 248, 355, text=user["phone"], max_length=20
             ),
-            "hoa_name": add(
-                board, 76, 546, 224, "Наименование ТСЖ", 104, 575, 738, text=info["name"]
-            ),
-            "inn": add(board, 76, 621, 111, "ИНН", 104, 650, 355, text=info["inn"]),
+            "hoa_name": add(board, 0, 0, 0, "Наименование ТСЖ", 111, 593, 738, text=info["name"]),
+            "inn": add(board, 0, 0, 0, "ИНН", 111, 677, 355, text=info["inn"]),
             "rate": add(
                 board,
-                459,
-                621,
-                179,
+                0,
+                0,
+                0,
                 "Тариф за 1 м2, руб.",
-                487,
-                650,
+                494,
+                677,
                 355,
                 text=dialogs.comma(info["rate_per_m2"]),
             ),
-            "address": add(board, 76, 696, 158, "Адрес дома", 104, 725, 738, text=info["address"]),
+            "address": add(board, 0, 0, 0, "Адрес дома", 111, 761, 738, text=info["address"]),
         }
         # логин и пароль менять нельзя: поля только для чтения (пароль - тот, что введён при входе)
         login = add(
-            board,
-            77,
-            318,
-            400,
-            "Электронная почта (не изменяется)",
-            105,
-            347,
-            738,
-            text=user["login"],
+            board, 0, 0, 0, "Электронная почта (не изменяется)", 111, 358, 738, text=user["login"]
         )
         login.set_readonly(True)
         password = add(
-            board, 77, 394, 256, "Пароль (не изменяется)", 105, 423, 738, text=app.session_password
+            board, 0, 0, 0, "Пароль (не изменяется)", 111, 442, 738, text=app.session_password
         )
         password.set_readonly(True)
 
@@ -105,36 +103,28 @@ class ResidentEditScreen:
         self.user = user
 
         # заголовок в две строки и подсказка
-        board.label(62, 15, 289, "Редактирование\nданных жильца", "Bold", 32)
-        board.label(48, 111, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
+        board.label(0, 15, 521, "Редактирование\nданных жильца", "Bold", 32)
+        board.label(40, 111, 441, hoa_subtitle(), "ExtraLight", 20, wrap=True)
 
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, 62, 196, 111, "ФИО", 90, 225, 355, text=user["full_name"]),
+            "full_name": add(board, 0, 0, 0, "ФИО", 83, 225, 355, text=user["full_name"]),
             "phone": add(
-                board, 68, 276, 111, "Телефон", 90, 305, 355, text=user["phone"], max_length=20
+                board, 0, 0, 0, "Телефон", 83, 309, 355, text=user["phone"], max_length=20
             ),
         }
         # логин и пароль менять нельзя
         login = add(
-            board,
-            62,
-            356,
-            400,
-            "Электронная почта (не изменяется)",
-            90,
-            385,
-            355,
-            text=user["login"],
+            board, 0, 0, 0, "Электронная почта (не изменяется)", 83, 393, 355, text=user["login"]
         )
         login.set_readonly(True)
         password = add(
-            board, 62, 429, 254, "Пароль (не изменяется)", 90, 458, 355, text=app.session_password
+            board, 0, 0, 0, "Пароль (не изменяется)", 83, 477, 355, text=app.session_password
         )
         password.set_readonly(True)
 
-        kit.Button(board, 180, 542, 119, 35, "Отмена", self.cancel, "plain")
-        kit.Button(board, 312, 542, 133, 35, "Сохранить", self.save)
+        kit.Button(board, 127, 565, 119, 35, "Отмена", self.cancel, "plain")
+        kit.Button(board, 260, 565, 133, 35, "Сохранить", self.save)
         self.fields["full_name"].focus()
 
     def cancel(self):
