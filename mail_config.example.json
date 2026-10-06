@@ -1,5 +1,6 @@
 {
   "deepseek_api_key": "ключ API DeepSeek",
+  "brevo_api_key": "ключ API Brevo (если почтовые порты закрыты); иначе оставьте пустым",
   "smtp_host": "smtp.gmail.com",
   "smtp_port": 465,
   "smtp_user": "адрес почты, с которой уходят письма",

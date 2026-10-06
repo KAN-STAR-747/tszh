@@ -1,5 +1,6 @@
 """Тесты правок после макета: собственник, длина полей, изменение заявок, новые окна."""
 
+import json
 import unittest
 from unittest import mock
 
@@ -242,10 +243,6 @@ class FinanceEditTest(BaseTest):
         self.assertEqual(finance.get_target_charges(), [])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RecoveryTests(BaseTest):
     """Восстановление аккаунта: новый пароль уходит на почту (логин), старый перестаёт работать."""
 
@@ -345,9 +342,9 @@ class PasswordGeneratorTests(unittest.TestCase):
 
 
 class MailerTests(unittest.TestCase):
-    """Письмо уходит через SMTP; без настроек почты - понятная ошибка."""
+    """Письмо уходит через SMTP (с запасным портом) или через Brevo; без настроек - ошибка."""
 
-    def settings(self, password="app-password"):
+    def settings(self, password="app-password", brevo=""):
         return mock.patch.object(
             mailer.settings,
             "get_settings",
@@ -356,11 +353,12 @@ class MailerTests(unittest.TestCase):
                 "smtp_port": 465,
                 "smtp_user": "sender@test.com",
                 "smtp_password": password,
+                "brevo_api_key": brevo,
                 "sender_name": "ТСЖ",
             },
         )
 
-    def test_sends_password_to_recipient(self):
+    def test_sends_password_by_smtp(self):
         with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
             mailer.send_password("user@mail.ru", "Ab12Cd34")
         server = smtp.return_value.__enter__.return_value
@@ -369,13 +367,46 @@ class MailerTests(unittest.TestCase):
         self.assertEqual(message["To"], "user@mail.ru")
         self.assertIn("Ab12Cd34", message.get_content())
 
+    def test_smtp_falls_back_to_port_587(self):
+        with self.settings(), mock.patch.object(
+            mailer.smtplib, "SMTP_SSL", side_effect=TimeoutError
+        ), mock.patch.object(mailer.smtplib, "SMTP") as plain:
+            mailer.send_password("user@mail.ru", "Ab12Cd34")
+        server = plain.return_value.__enter__.return_value
+        server.starttls.assert_called_once()
+        server.send_message.assert_called_once()
+
+    def test_sends_password_by_brevo_over_https(self):
+        with self.settings(brevo="key-123"), mock.patch.object(
+            mailer.urllib.request, "urlopen"
+        ) as urlopen, mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
+            mailer.send_password("user@mail.ru", "Ab12Cd34")
+        smtp.assert_not_called()  # с ключом Brevo SMTP не нужен
+        request = urlopen.call_args[0][0]
+        self.assertEqual(request.get_header("Api-key"), "key-123")
+        sent = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(sent["to"], [{"email": "user@mail.ru"}])
+        self.assertEqual(sent["sender"]["email"], "sender@test.com")
+        self.assertIn("Ab12Cd34", sent["textContent"])
+
+    def test_brevo_refusal_becomes_app_error(self):
+        refusal = mailer.urllib.error.HTTPError("url", 401, "Unauthorized", {}, None)
+        with self.settings(brevo="bad"), mock.patch.object(
+            mailer.urllib.request, "urlopen", side_effect=refusal
+        ):
+            with self.assertRaises(AppError) as error:
+                mailer.send_password("user@mail.ru", "Ab12Cd34")
+        self.assertIn("401", str(error.exception))
+
     def test_not_configured(self):
         with self.settings(""):
             with self.assertRaises(AppError):
                 mailer.send_password("user@mail.ru", "Ab12Cd34")
 
     def test_send_failure_becomes_app_error(self):
-        with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL", side_effect=OSError):
+        with self.settings(), mock.patch.object(
+            mailer.smtplib, "SMTP_SSL", side_effect=OSError
+        ), mock.patch.object(mailer.smtplib, "SMTP", side_effect=OSError):
             with self.assertRaises(AppError):
                 mailer.send_password("user@mail.ru", "Ab12Cd34")
 
