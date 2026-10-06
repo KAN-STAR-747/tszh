@@ -432,6 +432,24 @@ class MailerTests(unittest.TestCase):
                 mailer.send_password("user@mail.ru", "Ab12Cd34")
         self.assertIn("неверный токен", str(error.exception))
 
+    def test_failure_message_explains_vpn_and_ports(self):
+        with self.settings(), mock.patch.object(
+            mailer.smtplib, "SMTP_SSL", side_effect=TimeoutError
+        ), mock.patch.object(mailer.smtplib, "SMTP", side_effect=TimeoutError):
+            with self.assertRaises(AppError) as error:
+                mailer.send_password("user@mail.ru", "Ab12Cd34")
+        self.assertIn("TimeoutError", str(error.exception))
+        self.assertIn("VPN", str(error.exception))
+        self.assertIn("apps_script_url", str(error.exception))
+
+    def test_gmail_login_refusal_mentions_vpn(self):
+        refusal = mailer.smtplib.SMTPAuthenticationError(535, b"bad credentials")
+        with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
+            smtp.return_value.__enter__.return_value.login.side_effect = refusal
+            with self.assertRaises(AppError) as error:
+                mailer.send_password("user@mail.ru", "Ab12Cd34")
+        self.assertIn("VPN", str(error.exception))
+
     def test_not_configured(self):
         with self.settings(""):
             with self.assertRaises(AppError):

@@ -10,6 +10,7 @@
 
 import json
 import smtplib
+import socket
 import ssl
 import urllib.error
 import urllib.request
@@ -149,11 +150,35 @@ def send_mail(recipient, subject, text):
         ) from None
     except smtplib.SMTPAuthenticationError:
         raise AppError(
-            "Почта отклонила вход: проверьте пароль приложения в mail_config.json."
+            "Gmail отклонил вход. Если включён VPN, отключите его: Gmail часто блокирует вход "
+            "с адресов VPN. Также проверьте пароль приложения в mail_config.json."
         ) from None
     except (smtplib.SMTPException, OSError, ValueError) as error:
-        # в скобках - техническая причина (например, TimeoutError - почтовый порт закрыт сетью)
-        raise AppError(
-            f"Не удалось отправить письмо ({type(error).__name__}). "
-            "Проверьте подключение к интернету."
-        ) from None
+        raise AppError(describe_error(error, use_script or use_brevo)) from None
+
+
+def describe_error(error, over_https):
+    """Понятное объяснение сбоя отправки (в скобках - техническая причина).
+
+    Args:
+        error: пойманное исключение.
+        over_https (bool): письмо шло по HTTPS (скрипт Google или Brevo), а не по SMTP.
+    """
+    reason = type(error).__name__
+    if isinstance(error, ssl.SSLError):
+        hint = (
+            "Не удалось установить защищённое соединение: VPN или антивирус подменяет сертификат."
+        )
+    elif isinstance(error, socket.gaierror):
+        hint = (
+            "Не найден адрес почтового сервера: проверьте интернет и DNS (при VPN смените сервер)."
+        )
+    elif over_https:
+        hint = "Нет соединения с почтовым сервисом. Проверьте интернет или отключите VPN."
+    else:
+        hint = (
+            "Нет соединения с почтовым сервером: почтовые порты закрыты сетью или VPN. "
+            "Отключите VPN либо настройте отправку через скрипт Google (apps_script_url "
+            "в mail_config.json) - она работает и с VPN."
+        )
+    return f"Не удалось отправить письмо ({reason}). {hint}"
