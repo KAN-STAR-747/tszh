@@ -344,7 +344,7 @@ class PasswordGeneratorTests(unittest.TestCase):
 class MailerTests(unittest.TestCase):
     """Письмо уходит через SMTP (с запасным портом) или через Brevo; без настроек - ошибка."""
 
-    def settings(self, password="app-password", brevo=""):
+    def settings(self, password="app-password", brevo="", script=""):
         return mock.patch.object(
             mailer.settings,
             "get_settings",
@@ -354,6 +354,8 @@ class MailerTests(unittest.TestCase):
                 "smtp_user": "sender@test.com",
                 "smtp_password": password,
                 "brevo_api_key": brevo,
+                "apps_script_url": script,
+                "apps_script_token": "secret-word",
                 "sender_name": "ТСЖ",
             },
         )
@@ -397,6 +399,34 @@ class MailerTests(unittest.TestCase):
             with self.assertRaises(AppError) as error:
                 mailer.send_password("user@mail.ru", "Ab12Cd34")
         self.assertIn("401", str(error.exception))
+
+    def answer(self, text):
+        """Подменяет ответ скрипта Google (urlopen) заданным JSON-текстом."""
+        urlopen = mock.patch.object(mailer.urllib.request, "urlopen")
+        started = urlopen.start()
+        self.addCleanup(urlopen.stop)
+        started.return_value.__enter__.return_value.read.return_value = text.encode("utf-8")
+        return started
+
+    def test_sends_password_by_google_script(self):
+        urlopen = self.answer('{"ok": true}')
+        with self.settings(script="https://script.test/exec"), mock.patch.object(
+            mailer.smtplib, "SMTP_SSL"
+        ) as smtp:
+            mailer.send_password("user@mail.ru", "Ab12Cd34")
+        smtp.assert_not_called()
+        request = urlopen.call_args[0][0]
+        self.assertEqual(request.full_url, "https://script.test/exec")
+        sent = json.loads(request.data.decode("utf-8"))
+        self.assertEqual((sent["to"], sent["token"]), ("user@mail.ru", "secret-word"))
+        self.assertIn("Ab12Cd34", sent["body"])
+
+    def test_google_script_refusal_becomes_app_error(self):
+        self.answer('{"ok": false, "error": "неверный токен"}')
+        with self.settings(script="https://script.test/exec"):
+            with self.assertRaises(AppError) as error:
+                mailer.send_password("user@mail.ru", "Ab12Cd34")
+        self.assertIn("неверный токен", str(error.exception))
 
     def test_not_configured(self):
         with self.settings(""):

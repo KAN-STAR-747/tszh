@@ -1,9 +1,11 @@
 """Отправка писем с новым паролем.
 
-Два способа (выбирается по настройкам в mail_config.json):
-  1. Почтовый сервис Brevo по HTTPS (порт 443): включается, если указан brevo_api_key.
-     Работает там, где закрыты почтовые порты.
-  2. SMTP (по умолчанию Gmail): сначала порт 465 (SSL), если не вышло - порт 587 (STARTTLS).
+Три способа (выбирается по настройкам в mail_config.json, сверху вниз):
+  1. Скрипт Google Apps Script по HTTPS (порт 443): включается, если указан apps_script_url.
+     Письмо уходит с вашей почты Gmail, регистрироваться нигде не нужно.
+  2. Почтовый сервис Brevo по HTTPS: включается, если указан brevo_api_key.
+  3. SMTP (по умолчанию Gmail): сначала порт 465 (SSL), если не вышло - порт 587 (STARTTLS).
+Способы 1 и 2 работают там, где почтовые порты закрыты сетью.
 """
 
 import json
@@ -29,6 +31,27 @@ def make_text(password):
         f"Ваш новый пароль: {password}\n\n"
         "Войдите с этим паролем. Если вы не запрашивали восстановление, сообщите председателю."
     )
+
+
+def send_by_apps_script(config, recipient, password):
+    """Отправка через скрипт Google (google_mail_script.gs). Отказ скрипта - AppError."""
+    body = json.dumps(
+        {
+            "token": config["apps_script_token"],
+            "to": recipient,
+            "subject": SUBJECT,
+            "body": make_text(password),
+            "name": config["sender_name"],
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        config["apps_script_url"], data=body, headers={"Content-Type": "application/json"}
+    )
+    # Google отвечает перенаправлением на страницу с результатом: urllib проходит по нему сам
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        answer = json.load(response)
+    if not answer.get("ok"):
+        raise AppError(f"Скрипт Google не отправил письмо: {answer.get('error', 'неизвестно')}.")
 
 
 def send_by_brevo(config, recipient, password):
@@ -88,11 +111,15 @@ def send_password(recipient, password):
         AppError: почта не настроена или письмо не отправилось.
     """
     config = settings.get_settings()
+    use_script = bool(config["apps_script_url"])
     use_brevo = bool(config["brevo_api_key"])
-    if not config["smtp_user"] or not (use_brevo or config["smtp_password"]):
+    smtp_ready = bool(config["smtp_user"] and config["smtp_password"])
+    if not (use_script or (use_brevo and config["smtp_user"]) or smtp_ready):
         raise AppError("Отправка почты не настроена: заполните файл mail_config.json.")
     try:
-        if use_brevo:
+        if use_script:
+            send_by_apps_script(config, recipient, password)
+        elif use_brevo:
             send_by_brevo(config, recipient, password)
         else:
             send_by_smtp(config, recipient, password)

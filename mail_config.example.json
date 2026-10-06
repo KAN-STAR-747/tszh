@@ -1,5 +1,7 @@
 {
   "deepseek_api_key": "ключ API DeepSeek",
+  "apps_script_url": "адрес развёрнутого скрипта Google (https://script.google.com/macros/s/.../exec)",
+  "apps_script_token": "секретное слово, такое же, как в скрипте",
   "brevo_api_key": "ключ API Brevo (если почтовые порты закрыты); иначе оставьте пустым",
   "smtp_host": "smtp.gmail.com",
   "smtp_port": 465,

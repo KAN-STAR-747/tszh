@@ -15,6 +15,8 @@ CONFIG_NAME = "mail_config.json"
 # ключ -> значение по умолчанию; переменная окружения называется так же большими буквами
 DEFAULTS = {
     "deepseek_api_key": "",
+    "apps_script_url": "",  # если задан, письма идут через скрипт Google (HTTPS) - основной способ
+    "apps_script_token": "",
     "brevo_api_key": "",  # если задан, письма идут через Brevo по HTTPS, а не через SMTP
     "smtp_host": "smtp.gmail.com",
     "smtp_port": 465,
