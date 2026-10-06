@@ -30,10 +30,12 @@ class ValidationTest(unittest.TestCase):
         with self.assertRaises(AppError):
             validation.check_phone("+799912345678")
 
-    def test_login_must_be_latin(self):
-        self.assertEqual(validation.check_login("ivan_77"), "ivan_77")
-        with self.assertRaises(AppError):
-            validation.check_login("иван")
+    def test_login_must_be_email(self):
+        # почта приводится к нижнему регистру и принимается с точками, плюсом и цифрами
+        self.assertEqual(validation.check_login("Ivan.Petrov+77@Mail.ru"), "ivan.petrov+77@mail.ru")
+        for wrong in ("ivan_77", "иван@mail.ru", "ivan@mail", "ivan @mail.ru", "@mail.ru"):
+            with self.assertRaises(AppError):
+                validation.check_login(wrong)
 
     def test_password_min_length(self):
         with self.assertRaises(AppError):
@@ -53,13 +55,13 @@ class AuthTest(BaseTest):
 
     def test_chairman_can_login(self):
         auth.register_chairman(chairman_data())
-        user = auth.login_user("ivanov", "secret12")
+        user = auth.login_user("ivanov@example.com", "secret12")
         self.assertEqual(user["is_participant"], 0)
 
     def test_wrong_password(self):
         auth.register_chairman(chairman_data())
         with self.assertRaises(AppError):
-            auth.login_user("ivanov", "wrong")
+            auth.login_user("ivanov@example.com", "wrong")
 
     def test_password_is_not_stored_as_plain_text(self):
         auth.register_chairman(chairman_data())
@@ -74,18 +76,18 @@ class AuthTest(BaseTest):
                 "full_name": "Смирнов О.Р.",
                 "phone": "+79991112233",
                 "apartment_number": "1",
-                "login": "smirnov",
+                "login": "smirnov@example.com",
                 "password": "pass1234",
                 "password2": "pass1234",
             }
         )
         with self.assertRaises(AppError) as error:
-            auth.login_user("smirnov", "pass1234")
+            auth.login_user("smirnov@example.com", "pass1234")
         self.assertIn("ожидает подтверждения", str(error.exception))
 
         user_id = auth.get_pending_residents()[0]["users_id"]
         auth.approve_resident(user_id)
-        self.assertEqual(auth.login_user("smirnov", "pass1234")["is_participant"], 1)
+        self.assertEqual(auth.login_user("smirnov@example.com", "pass1234")["is_participant"], 1)
 
     def test_resident_with_unknown_apartment(self):
         auth.register_chairman(chairman_data())
@@ -94,7 +96,7 @@ class AuthTest(BaseTest):
             "full_name": "Смирнов О.Р.",
             "phone": "+79991112233",
             "apartment_number": "77",
-            "login": "smirnov",
+            "login": "smirnov@example.com",
             "password": "pass1234",
             "password2": "pass1234",
         }
@@ -102,7 +104,7 @@ class AuthTest(BaseTest):
         apartment = apartments.get_apartment_by_number(77)
         self.assertEqual(apartment["owner_name"], "Смирнов О.Р.")
         data["apartment_number"] = " "
-        data["login"] = "smirnov2"
+        data["login"] = "smirnov2@example.com"
         with self.assertRaises(AppError):
             auth.register_resident(data)
 

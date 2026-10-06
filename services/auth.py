@@ -5,7 +5,7 @@ import os  # os.urandom даёт случайные байты для соли
 import sqlite3
 
 from db import database as db
-from services import apartments
+from services import apartments, mailer, password_generator
 from services import validation as check
 from services.errors import AppError
 
@@ -127,7 +127,7 @@ def register_resident(data):
 
 def login_user(login, password):
     """Проверяет логин и пароль, возвращает данные пользователя словарём."""
-    row = db.query_one("SELECT * FROM users WHERE login = ?", (login.strip(),))
+    row = db.query_one("SELECT * FROM users WHERE login = ?", (login.strip().lower(),))
     # Одно и то же сообщение для неверного логина и пароля: так безопаснее
     if row is None or not password_matches(password, row["password_hash"]):
         raise AppError("Неверный логин или пароль.")
@@ -136,56 +136,31 @@ def login_user(login, password):
     return dict(row)
 
 
-def same_person(user, full_name, phone):
-    """True, если ФИО и телефон совпали с данными пользователя из базы.
+def recover_account(login, chairman):
+    """Восстановление аккаунта: новый пароль приходит на почту, указанную при регистрации.
 
-    ФИО сравнивается без учёта регистра и лишних пробелов, телефон - по цифрам («+7» = «8»).
+    Пароль придумывает DeepSeek (services/password_generator.py). В базе он меняется
+    только если письмо ушло: при сбое отправки старый пароль остаётся рабочим.
+
+    Args:
+        login (str): электронная почта (логин) пользователя.
+        chairman (bool): True - аккаунт председателя, False - аккаунт жильца.
     """
-    same_name = " ".join(full_name.lower().split()) == " ".join(user["full_name"].lower().split())
-    return same_name and check.normalize_phone(phone) == check.normalize_phone(user["phone"])
-
-
-def change_credentials(user_id, login, password):
-    """Записывает новый логин и новый хеш пароля. Занятый чужой логин - ошибка."""
-    try:
-        db.execute(
-            "UPDATE users SET login = ?, password_hash = ? WHERE users_id = ?",
-            (login, make_hash(password), user_id),
-        )
-    except sqlite3.IntegrityError:  # сработал UNIQUE по логину
-        raise AppError("Такой логин уже занят.") from None
-
-
-def recover_chairman(data):
-    """Восстановление аккаунта председателя: ФИО, телефон и ИНН ТСЖ -> новый логин и пароль."""
-    # Новые логин и пароль проверяем сразу: об их ошибках можно сказать честно
-    login = check.check_login(data["login"])
-    password = check.check_password(data["password"], data["password2"])
-    row = db.query_one("SELECT * FROM users WHERE is_participant = 0 LIMIT 1")
-    info = db.query_one("SELECT inn FROM hoa LIMIT 1")
-    # Одно сообщение на любую неверную комбинацию: так нельзя подобрать данные по частям
-    if row is None or info is None or not same_person(row, data["full_name"], data["phone"]):
-        raise AppError("Данные указаны неверно")
-    if info["inn"] != data["inn"].strip():
-        raise AppError("Данные указаны неверно")
-    change_credentials(row["users_id"], login, password)
-
-
-def recover_resident(data):
-    """Восстановление аккаунта жильца: ФИО, телефон и номер квартиры -> новый логин и пароль."""
-    login = check.check_login(data["login"])
-    password = check.check_password(data["password"], data["password2"])
-    number = check.parse_positive_int(data["apartment_number"], "Квартира")
-    rows = db.query_all(
-        "SELECT u.* FROM users u JOIN apartments a ON a.apartment_id = u.apartment_id "
-        "WHERE u.is_participant = 1 AND a.number = ?",
-        (number,),
+    login = check.check_login(login)
+    row = db.query_one(
+        "SELECT users_id FROM users WHERE login = ? AND is_participant = ?",
+        (login, 0 if chairman else 1),
     )
-    for row in rows:
-        if same_person(row, data["full_name"], data["phone"]):
-            change_credentials(row["users_id"], login, password)
-            return
-    raise AppError("Данные указаны неверно")
+    if row is None:
+        raise AppError("Аккаунт с такой электронной почтой не найден.")
+    password = password_generator.generate_password()
+    with db.transaction() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE users_id = ?",
+            (make_hash(password), row["users_id"]),
+        )
+        # письмо отправляем до подтверждения транзакции: не ушло - изменение откатится
+        mailer.send_password(login, password)
 
 
 def get_pending_residents():

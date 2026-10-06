@@ -5,9 +5,8 @@ from ui import dialogs, kit
 from ui.auth_screens import (
     ChairmanRegisterScreen,
     LoginScreen,
-    ChairmanRecoveryScreen,
     RecoveryChoiceScreen,
-    ResidentRecoveryScreen,
+    RecoveryScreen,
     ResidentRegisterScreen,
 )
 from ui.edit_screens import ChairmanEditScreen, ResidentEditScreen
@@ -130,8 +129,8 @@ class App:
         self.show(RecoveryChoiceScreen)
 
     def show_recovery(self, chairman=False):
-        """Экран восстановления аккаунта: председателя (кадр 23) или жильца (кадр 24)."""
-        self.show(ChairmanRecoveryScreen if chairman else ResidentRecoveryScreen)
+        """Экран восстановления аккаунта председателя (True) или жильца (False)."""
+        self.show(RecoveryScreen, chairman)
 
     def show_main(self, user, tab=0):
         """Главное окно в зависимости от роли пользователя (tab - вкладка председателя)."""

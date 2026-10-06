@@ -32,7 +32,7 @@ def fill():
         {
             "full_name": "Иванов Иван Иванович",
             "phone": "+7 777 777 77 77",
-            "login": "ivanov",
+            "login": "ivanov@example.com",
             "password": "ivanov123",
             "password2": "ivanov123",
             "hoa_name": 'ТСЖ "Березка"',
@@ -72,7 +72,7 @@ def fill():
             "full_name": "Смирнов Олег Романович",
             "phone": "+79131112233",
             "apartment_number": "2",
-            "login": "smirnov",
+            "login": "smirnov@example.com",
             "password": "smirnov123",
             "password2": "smirnov123",
         }
@@ -83,13 +83,13 @@ def fill():
             "full_name": "Петров Пётр Петрович",
             "phone": "+79134445566",
             "apartment_number": "8",
-            "login": "petrov",
+            "login": "petrov@example.com",
             "password": "petrov123",
             "password2": "petrov123",
         }
     )
 
-    chairman = auth.login_user("ivanov", "ivanov123")["users_id"]
+    chairman = auth.login_user("ivanov@example.com", "ivanov123")["users_id"]
     requests_service.create_request(
         chairman,
         None,
@@ -109,9 +109,9 @@ def fill():
         chairman, rows[2]["apartment_id"], "Перегорела лампочка", "В подъезде на 3 этаже.", "Звонок"
     )
     print("Тестовая база создана:", database.DB_PATH)
-    print("Председатель: ivanov / ivanov123")
-    print("Жилец: smirnov / smirnov123 (кв. 2)")
-    print("Ожидает подтверждения: petrov / petrov123")
+    print("Председатель: ivanov@example.com / ivanov123")
+    print("Жилец: smirnov@example.com / smirnov123 (кв. 2)")
+    print("Ожидает подтверждения: petrov@example.com / petrov123")
 
 
 if __name__ == "__main__":

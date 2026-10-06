@@ -64,15 +64,18 @@ def same_surname(full_name_a, full_name_b):
     return first_a != "" and first_a == first_b
 
 
+MAX_EMAIL_LENGTH = 254  # предел длины адреса электронной почты
+
+# адрес вида имя@домен.зона: латиница, цифры и знаки . _ % + - в имени
+EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+
+
 def check_login(value):
-    """Проверяет логин: латинские буквы, цифры и знаки _ . - (хотя бы одна буква)."""
-    login = require_text(value, "Логин")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", login) or not re.search(r"[A-Za-z]", login):
-        raise AppError(
-            "Логин должен состоять из латинских букв (можно цифры и знаки _ . -), "
-            "без пробелов и русских букв."
-        )
-    return login
+    """Проверяет логин: это адрес электронной почты. Возвращает его в нижнем регистре."""
+    login = require_text(value, "Электронная почта")
+    if len(login) > MAX_EMAIL_LENGTH or not EMAIL_PATTERN.fullmatch(login):
+        raise AppError("Логином должен быть адрес электронной почты, например name@mail.ru.")
+    return login.lower()  # почта не зависит от регистра: хранится строчными буквами
 
 
 def check_password(password, repeat):

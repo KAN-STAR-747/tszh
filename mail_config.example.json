@@ -1,0 +1,8 @@
+{
+  "deepseek_api_key": "ключ API DeepSeek",
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 465,
+  "smtp_user": "адрес почты, с которой уходят письма",
+  "smtp_password": "пароль приложения Gmail (16 символов)",
+  "sender_name": "Система управления ТСЖ"
+}

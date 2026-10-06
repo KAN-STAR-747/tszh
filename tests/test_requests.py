@@ -11,7 +11,7 @@ class RequestsTest(BaseTest):
     def setUp(self):
         super().setUp()
         auth.register_chairman(chairman_data())
-        self.user_id = auth.login_user("ivanov", "secret12")["users_id"]
+        self.user_id = auth.login_user("ivanov@example.com", "secret12")["users_id"]
 
     def test_status_flow_and_closed_date(self):
         request_id = requests_service.create_request(

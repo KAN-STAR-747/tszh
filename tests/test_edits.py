@@ -1,13 +1,16 @@
 """Тесты правок после макета: собственник, длина полей, изменение заявок, новые окна."""
 
 import unittest
+from unittest import mock
 
-from services import apartments, auth, finance, hoa, requests_service
+from services import apartments, auth, finance, hoa, mailer, password_generator, requests_service
 from services.errors import AppError
 from tests.helpers import BaseTest, apartment_data, chairman_data
 
 
-def resident_data(login="smirnov", name="Смирнов О.Р.", phone="+79991112233", number="1"):
+def resident_data(
+    login="smirnov@example.com", name="Смирнов О.Р.", phone="+79991112233", number="1"
+):
     """Данные для регистрации жильца (по умолчанию - не собственник квартиры 1)."""
     return {
         "full_name": name,
@@ -30,16 +33,16 @@ class OwnerTest(BaseTest):
 
     # Совпали фамилия и телефон: это собственник, подтверждение председателя не нужно
     def test_owner_is_approved_at_once(self):
-        data = resident_data("petrov", "Петров Пётр Петрович", "+79990001122")
+        data = resident_data("petrov@example.com", "Петров Пётр Петрович", "+79990001122")
         self.assertTrue(auth.register_resident(data))
-        user = auth.login_user("petrov", "pass1234")
+        user = auth.login_user("petrov@example.com", "pass1234")
         self.assertTrue(auth.is_owner(user))
 
     # В реестре телефон +79990001122; жилец вводит его с «8» и пробелами - это тот же номер
     def test_phone_8_and_plus7_are_same(self):
-        data = resident_data("petrov", "Петров П.П.", "8 999 000 11 22")
+        data = resident_data("petrov@example.com", "Петров П.П.", "8 999 000 11 22")
         self.assertTrue(auth.register_resident(data))
-        user = auth.login_user("petrov", "pass1234")
+        user = auth.login_user("petrov@example.com", "pass1234")
         self.assertEqual(user["phone"], "89990001122")  # пробелы в базе не сохраняются
 
     # Телефон собственника в реестре записан с «8», жилец вводит его с «+7»
@@ -47,17 +50,17 @@ class OwnerTest(BaseTest):
         apartments.save_apartment(
             {**apartment_data("2"), "owner_name": "Сидоров С.С.", "owner_phone": "89135554433"}
         )
-        data = resident_data("sidorov", "Сидоров Сергей", "+7 913 555 44 33", "2")
+        data = resident_data("sidorov@example.com", "Сидоров Сергей", "+7 913 555 44 33", "2")
         self.assertTrue(auth.register_resident(data))
 
     # Другая фамилия: это не собственник, нужно подтверждение, а в кабинете виден собственник
     def test_other_person_waits_for_chairman(self):
         self.assertFalse(auth.register_resident(resident_data()))
         with self.assertRaises(AppError):
-            auth.login_user("smirnov", "pass1234")
+            auth.login_user("smirnov@example.com", "pass1234")
         user_id = auth.get_pending_residents()[0]["users_id"]
         auth.approve_resident(user_id)
-        user = auth.login_user("smirnov", "pass1234")
+        user = auth.login_user("smirnov@example.com", "pass1234")
         self.assertFalse(auth.is_owner(user))
         owner = apartments.get_apartment(user["apartment_id"])["owner_name"]
         self.assertEqual(owner, "Петров П.П.")
@@ -68,7 +71,7 @@ class OwnerTest(BaseTest):
         apartment = apartments.get_apartment_by_number(5)
         self.assertEqual(apartment["area"], 0)
         auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
-        user = auth.login_user("smirnov", "pass1234")
+        user = auth.login_user("smirnov@example.com", "pass1234")
         self.assertTrue(auth.is_owner(user))
 
     # Если председатель отклонил жильца, созданная для него квартира тоже удаляется
@@ -84,11 +87,11 @@ class OwnerTest(BaseTest):
 
     # Собственник меняет телефон: он остаётся собственником, запись о квартире меняется вместе
     def test_owner_profile_change_keeps_ownership(self):
-        data = resident_data("petrov", "Петров Пётр Петрович", "+79990001122")
+        data = resident_data("petrov@example.com", "Петров Пётр Петрович", "+79990001122")
         auth.register_resident(data)
-        user = auth.login_user("petrov", "pass1234")
+        user = auth.login_user("petrov@example.com", "pass1234")
         auth.update_profile(user["users_id"], "Петров Пётр Петрович", "+79995556677")
-        changed = auth.login_user("petrov", "pass1234")
+        changed = auth.login_user("petrov@example.com", "pass1234")
         self.assertTrue(auth.is_owner(changed))
 
     # Занятый логин не оставляет следов: квартира для такой регистрации не создаётся
@@ -100,8 +103,8 @@ class OwnerTest(BaseTest):
 
     # В окне «Жильцы» видны только подтверждённые жильцы
     def test_residents_list(self):
-        auth.register_resident(resident_data("petrov", "Петров Пётр", "+79990001122"))
-        auth.register_resident(resident_data("smirnov"))
+        auth.register_resident(resident_data("petrov@example.com", "Петров Пётр", "+79990001122"))
+        auth.register_resident(resident_data("smirnov@example.com"))
         residents = auth.get_residents()
         self.assertEqual(len(residents), 1)
         self.assertEqual(residents[0]["number"], 1)
@@ -117,7 +120,7 @@ class ChairmanEditTest(BaseTest):
 
     def test_update_chairman(self):
         auth.register_chairman(chairman_data())
-        user_id = auth.login_user("ivanov", "secret12")["users_id"]
+        user_id = auth.login_user("ivanov@example.com", "secret12")["users_id"]
         data = {
             "full_name": "Иванов И.П.",
             "phone": "8 999 123 45 67",
@@ -143,10 +146,10 @@ class RequestEditTest(BaseTest):
         super().setUp()
         auth.register_chairman(chairman_data())
         apartments.save_apartment(apartment_data("1"))
-        self.chairman_id = auth.login_user("ivanov", "secret12")["users_id"]
+        self.chairman_id = auth.login_user("ivanov@example.com", "secret12")["users_id"]
         auth.register_resident(resident_data())
         auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
-        self.resident = auth.login_user("smirnov", "pass1234")
+        self.resident = auth.login_user("smirnov@example.com", "pass1234")
 
     # Тема - до 50 символов, описание - до 250, исполнитель - до 25
     def test_length_limits(self):
@@ -244,7 +247,7 @@ if __name__ == "__main__":
 
 
 class RecoveryTests(BaseTest):
-    """Восстановление аккаунта: председатель (ФИО, телефон, ИНН) и жилец (ФИО, телефон, кв.)."""
+    """Восстановление аккаунта: новый пароль уходит на почту (логин), старый перестаёт работать."""
 
     def setUp(self):
         super().setUp()
@@ -253,67 +256,129 @@ class RecoveryTests(BaseTest):
         auth.register_resident(resident_data())
         auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
 
-    def chairman(self, **changes):
-        """Верные данные председателя (ФИО с другим регистром, телефон через 8)."""
-        data = {
-            "full_name": "иванов  иван иванович",
-            "phone": "8 777 777 77 77",
-            "inn": "1234567890",
-            "login": "ivanov_new",
-            "password": "newpass12",
-            "password2": "newpass12",
-        }
-        data.update(changes)
-        return data
+    def recover(self, login, chairman):
+        """Восстанавливает аккаунт с подменой генератора и почты; возвращает (пароль, письмо)."""
+        with mock.patch.object(
+            password_generator, "generate_password", return_value="Ab12Cd34"
+        ), mock.patch.object(mailer, "send_password") as send:
+            auth.recover_account(login, chairman)
+        return send
 
-    def resident(self, **changes):
-        data = {
-            "full_name": "смирнов  о.р.",
-            "phone": "+7 999 111 22 33",
-            "apartment_number": "1",
-            "login": "smirnov_new",
-            "password": "newpass12",
-            "password2": "newpass12",
-        }
-        data.update(changes)
-        return data
-
-    def test_chairman_gets_new_login_and_password(self):
-        auth.recover_chairman(self.chairman())
-        self.assertEqual(auth.login_user("ivanov_new", "newpass12")["is_participant"], 0)
+    def test_chairman_gets_new_password_by_email(self):
+        send = self.recover("ivanov@example.com", True)
+        send.assert_called_once_with("ivanov@example.com", "Ab12Cd34")
+        self.assertEqual(auth.login_user("ivanov@example.com", "Ab12Cd34")["is_participant"], 0)
         with self.assertRaises(AppError):
-            auth.login_user("ivanov", "secret12")
+            auth.login_user("ivanov@example.com", "secret12")
 
-    def test_chairman_wrong_data_is_rejected(self):
-        for wrong in (
-            {"inn": "0000000000"},
-            {"full_name": "Другой Человек"},
-            {"phone": "89990000000"},
+    def test_resident_gets_new_password_by_email(self):
+        send = self.recover("Smirnov@Example.com", False)  # регистр почты не важен
+        send.assert_called_once_with("smirnov@example.com", "Ab12Cd34")
+        self.assertEqual(auth.login_user("smirnov@example.com", "Ab12Cd34")["is_participant"], 1)
+        with self.assertRaises(AppError):
+            auth.login_user("smirnov@example.com", "pass1234")
+
+    def test_unknown_or_wrong_role_is_rejected(self):
+        # такой почты нет; почта жильца при выборе «председатель»; почта председателя у «жильца»
+        for login, chairman in (
+            ("nobody@example.com", False),
+            ("smirnov@example.com", True),
+            ("ivanov@example.com", False),
+            ("не почта", True),
         ):
+            with mock.patch.object(mailer, "send_password") as send:
+                with self.assertRaises(AppError):
+                    auth.recover_account(login, chairman)
+            send.assert_not_called()
+        self.assertEqual(
+            auth.login_user("ivanov@example.com", "secret12")["login"], "ivanov@example.com"
+        )
+
+    def test_password_unchanged_if_mail_failed(self):
+        with mock.patch.object(
+            password_generator, "generate_password", return_value="Ab12Cd34"
+        ), mock.patch.object(mailer, "send_password", side_effect=AppError("Не отправилось")):
             with self.assertRaises(AppError):
-                auth.recover_chairman(self.chairman(**wrong))
-        self.assertEqual(auth.login_user("ivanov", "secret12")["login"], "ivanov")
-
-    def test_resident_gets_new_login_and_password(self):
-        auth.recover_resident(self.resident())
-        self.assertEqual(auth.login_user("smirnov_new", "newpass12")["is_participant"], 1)
+                auth.recover_account("smirnov@example.com", False)
+        # письмо не ушло, поэтому старый пароль остался рабочим, а новый - нет
+        self.assertEqual(auth.login_user("smirnov@example.com", "pass1234")["is_participant"], 1)
         with self.assertRaises(AppError):
-            auth.login_user("smirnov", "pass1234")
+            auth.login_user("smirnov@example.com", "Ab12Cd34")
 
-    def test_resident_wrong_data_is_rejected(self):
-        for wrong in (
-            {"apartment_number": "2"},
-            {"full_name": "Другой Человек"},
-            {"phone": "0000"},
+
+class PasswordGeneratorTests(unittest.TestCase):
+    """Пароль от DeepSeek проверяется; при сбое API создаётся запасной случайный пароль."""
+
+    def settings(self, key="sk-test"):
+        return mock.patch.object(
+            password_generator.settings, "get_settings", return_value={"deepseek_api_key": key}
+        )
+
+    def test_valid_password_rules(self):
+        self.assertTrue(password_generator.is_valid("a7K2mQ9z"))
+        for wrong in ("a7K2mQ9", "a7K2mQ9zz", "abcdefgh", "12345678", "a7K2mQ9!", None):
+            self.assertFalse(password_generator.is_valid(wrong))
+
+    def test_random_password_is_valid(self):
+        for _ in range(20):
+            self.assertTrue(password_generator.is_valid(password_generator.random_password()))
+
+    def test_uses_deepseek_answer(self):
+        with self.settings(), mock.patch.object(
+            password_generator, "ask_deepseek", return_value="a7K2mQ9z"
+        ) as ask:
+            self.assertEqual(password_generator.generate_password(), "a7K2mQ9z")
+        ask.assert_called_once_with("sk-test")
+
+    def test_falls_back_when_api_fails_or_answer_is_bad(self):
+        for effect in (
+            {"side_effect": OSError("нет сети")},
+            {"return_value": "слишком длинный ответ"},
         ):
-            with self.assertRaises(AppError):
-                auth.recover_resident(self.resident(**wrong))
-        self.assertEqual(auth.login_user("smirnov", "pass1234")["login"], "smirnov")
+            with self.settings(), mock.patch.object(password_generator, "ask_deepseek", **effect):
+                self.assertTrue(password_generator.is_valid(password_generator.generate_password()))
 
-    def test_new_login_must_be_free_and_valid(self):
-        with self.assertRaises(AppError):
-            auth.recover_resident(self.resident(login="ivanov"))  # логин председателя занят
-        with self.assertRaises(AppError):
-            auth.recover_resident(self.resident(login="логин"))  # не латиница
-        with self.assertRaises(AppError):
-            auth.recover_resident(self.resident(password="123", password2="123"))
+    def test_no_key_means_no_request(self):
+        with self.settings(""), mock.patch.object(password_generator, "ask_deepseek") as ask:
+            self.assertTrue(password_generator.is_valid(password_generator.generate_password()))
+        ask.assert_not_called()
+
+
+class MailerTests(unittest.TestCase):
+    """Письмо уходит через SMTP; без настроек почты - понятная ошибка."""
+
+    def settings(self, password="app-password"):
+        return mock.patch.object(
+            mailer.settings,
+            "get_settings",
+            return_value={
+                "smtp_host": "smtp.test",
+                "smtp_port": 465,
+                "smtp_user": "sender@test.com",
+                "smtp_password": password,
+                "sender_name": "ТСЖ",
+            },
+        )
+
+    def test_sends_password_to_recipient(self):
+        with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
+            mailer.send_password("user@mail.ru", "Ab12Cd34")
+        server = smtp.return_value.__enter__.return_value
+        server.login.assert_called_once_with("sender@test.com", "app-password")
+        message = server.send_message.call_args[0][0]
+        self.assertEqual(message["To"], "user@mail.ru")
+        self.assertIn("Ab12Cd34", message.get_content())
+
+    def test_not_configured(self):
+        with self.settings(""):
+            with self.assertRaises(AppError):
+                mailer.send_password("user@mail.ru", "Ab12Cd34")
+
+    def test_send_failure_becomes_app_error(self):
+        with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL", side_effect=OSError):
+            with self.assertRaises(AppError):
+                mailer.send_password("user@mail.ru", "Ab12Cd34")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -54,7 +54,17 @@ class ChairmanEditScreen:
             "address": add(board, 76, 696, 158, "Адрес дома", 104, 725, 738, text=info["address"]),
         }
         # логин и пароль менять нельзя: поля только для чтения (пароль - тот, что введён при входе)
-        login = add(board, 77, 318, 248, "Логин (не изменяется)", 105, 347, 738, text=user["login"])
+        login = add(
+            board,
+            77,
+            318,
+            400,
+            "Электронная почта (не изменяется)",
+            105,
+            347,
+            738,
+            text=user["login"],
+        )
         login.set_readonly(True)
         password = add(
             board, 77, 394, 256, "Пароль (не изменяется)", 105, 423, 738, text=app.session_password
@@ -106,7 +116,17 @@ class ResidentEditScreen:
             ),
         }
         # логин и пароль менять нельзя
-        login = add(board, 62, 356, 240, "Логин (не изменяется)", 90, 385, 355, text=user["login"])
+        login = add(
+            board,
+            62,
+            356,
+            400,
+            "Электронная почта (не изменяется)",
+            90,
+            385,
+            355,
+            text=user["login"],
+        )
         login.set_readonly(True)
         password = add(
             board, 62, 429, 254, "Пароль (не изменяется)", 90, 458, 355, text=app.session_password

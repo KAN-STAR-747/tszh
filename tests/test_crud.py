@@ -31,9 +31,9 @@ class CrudTest(BaseTest):
         self.assertIsNone(hoa.get_hoa())
 
     def test_update_profile(self):
-        user = auth.login_user("ivanov", "secret12")
+        user = auth.login_user("ivanov@example.com", "secret12")
         auth.update_profile(user["users_id"], "Иванов И.П.", "+79991234567")
-        changed = auth.login_user("ivanov", "secret12")
+        changed = auth.login_user("ivanov@example.com", "secret12")
         self.assertEqual(changed["full_name"], "Иванов И.П.")
         self.assertEqual(changed["phone"], "+79991234567")
 
@@ -55,7 +55,7 @@ class CrudTest(BaseTest):
         self.assertEqual(finance.get_payments(self.apartment_id), [])
 
     def test_delete_request(self):
-        user_id = auth.login_user("ivanov", "secret12")["users_id"]
+        user_id = auth.login_user("ivanov@example.com", "secret12")["users_id"]
         request_id = requests_service.create_request(user_id, None, "Тест", "", "Звонок")
         requests_service.delete_request(request_id)
         self.assertIsNone(requests_service.get_request(request_id))

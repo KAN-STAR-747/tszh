@@ -13,7 +13,7 @@ def chairman_data():
     return {
         "full_name": "Иванов Иван Иванович",
         "phone": "+7 777 777 77 77",
-        "login": "ivanov",
+        "login": "ivanov@example.com",
         "password": "secret12",
         "password2": "secret12",
         "hoa_name": "ТСЖ Березка",
