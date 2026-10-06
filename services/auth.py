@@ -234,12 +234,19 @@ def reject_resident(user_id):
             )
 
 
-def update_profile(user_id, full_name, phone):
-    """Изменяет ФИО и телефон пользователя."""
+def update_profile(user_id, full_name, phone, new_password=None):
+    """Изменяет ФИО и телефон пользователя (и пароль, если передан new_password)."""
     full_name = check.check_full_name(full_name)
     phone = check.check_phone(phone)
+    if new_password is not None:
+        new_password = check.check_password(new_password, new_password)
     user = get_user(user_id)
     with db.transaction() as conn:
+        if new_password is not None:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE users_id = ?",
+                (make_hash(new_password), user_id),
+            )
         # Собственник остаётся собственником и после смены данных: правим и запись о квартире
         if user is not None and is_owner(user):
             conn.execute(
@@ -252,15 +259,25 @@ def update_profile(user_id, full_name, phone):
         )
 
 
-def update_chairman(user_id, data):
-    """Изменяет данные председателя и данные ТСЖ (всё в одной транзакции)."""
+def update_chairman(user_id, data, new_password=None):
+    """Изменяет данные председателя и данные ТСЖ (и пароль, если передан new_password).
+
+    Всё сохраняется в одной транзакции: неверный пароль не оставляет частичных изменений.
+    """
     full_name = check.check_full_name(data["full_name"])
     phone = check.check_phone(data["phone"])
     hoa_name = check.check_hoa_name(data["hoa_name"])
     inn = check.check_inn(data["inn"])
     address, _ = hoa.prepare_address(data["address"])
     rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
+    if new_password is not None:
+        new_password = check.check_password(new_password, new_password)
     with db.transaction() as conn:
+        if new_password is not None:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE users_id = ?",
+                (make_hash(new_password), user_id),
+            )
         conn.execute(
             "UPDATE users SET full_name = ?, phone = ? WHERE users_id = ?",
             (full_name, phone, user_id),

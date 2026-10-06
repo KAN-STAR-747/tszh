@@ -190,5 +190,68 @@ class VerificationTests(BaseTest):
         self.assertIn("подтверждения", subject)
 
 
+class PasswordChangeTests(BaseTest):
+    """В настройках можно сменить пароль; неверный новый пароль ничего не меняет."""
+
+    def setUp(self):
+        super().setUp()
+        auth.register_chairman(chairman_data())
+        auth.register_resident(resident_form())
+        auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
+        self.chairman = auth.login_user("ivanov@example.com", "secret12")
+        self.resident = auth.login_user("smirnov@example.com", "pass1234")
+
+    def chairman_data(self, **changes):
+        data = {
+            "full_name": "Иванов Иван Иванович",
+            "phone": "+77777777777",
+            "hoa_name": "Березка",
+            "inn": "1234567890",
+            "address": "Одоевского 1",
+            "rate": "32,50",
+        }
+        data.update(changes)
+        return data
+
+    def test_chairman_changes_password(self):
+        auth.update_chairman(self.chairman["users_id"], self.chairman_data(), "newpass99")
+        self.assertEqual(auth.login_user("ivanov@example.com", "newpass99")["is_participant"], 0)
+        with self.assertRaises(AppError):
+            auth.login_user("ivanov@example.com", "secret12")
+
+    def test_resident_changes_password(self):
+        auth.update_profile(
+            self.resident["users_id"], "Смирнов Олег Романович", "+79991112233", "newpass99"
+        )
+        self.assertEqual(auth.login_user("smirnov@example.com", "newpass99")["is_participant"], 1)
+        with self.assertRaises(AppError):
+            auth.login_user("smirnov@example.com", "pass1234")
+
+    def test_without_new_password_old_one_stays(self):
+        auth.update_profile(self.resident["users_id"], "Смирнов Олег Игоревич", "+79991112233")
+        user = auth.login_user("smirnov@example.com", "pass1234")
+        self.assertEqual(user["full_name"], "Смирнов Олег Игоревич")
+
+    def test_short_password_changes_nothing(self):
+        with self.assertRaises(AppError):
+            auth.update_profile(
+                self.resident["users_id"], "Смирнов Олег Игоревич", "+79991112233", "123"
+            )
+        user = auth.login_user("smirnov@example.com", "pass1234")  # старый пароль работает
+        self.assertEqual(user["full_name"], "Смирнов Олег Романович")  # и ФИО не изменилось
+        with self.assertRaises(AppError):
+            auth.update_chairman(self.chairman["users_id"], self.chairman_data(), "short")
+        self.assertEqual(
+            auth.login_user("ivanov@example.com", "secret12")["login"], "ivanov@example.com"
+        )
+
+    def test_login_cannot_be_changed(self):
+        # у функций сохранения нет параметра для почты: логин после сохранения прежний
+        auth.update_profile(
+            self.resident["users_id"], "Смирнов Олег Романович", "+79991112233", "newpass99"
+        )
+        self.assertEqual(auth.get_user(self.resident["users_id"])["login"], "smirnov@example.com")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3,7 +3,7 @@
 from services import auth, hoa
 from services.errors import AppError
 from ui import dialogs, kit
-from ui.auth_screens import hoa_subtitle
+from ui.auth_screens import brand_header
 
 
 class ChairmanEditScreen:
@@ -29,6 +29,7 @@ class ChairmanEditScreen:
             "Измените данные председателя и данные ТСЖ.",
             "ExtraLight",
             20,
+            color=kit.MUTED,
             align="left",
         )
         # три синие панели: председатель, логин с паролем, данные ТСЖ
@@ -59,15 +60,12 @@ class ChairmanEditScreen:
             ),
             "address": add(board, 0, 0, 0, "Адрес дома", 111, 761, 738, text=info["address"]),
         }
-        # логин и пароль менять нельзя: поля только для чтения (пароль - тот, что введён при входе)
+        # почту (логин) менять нельзя; пароль можно: в поле виден пароль, введённый при входе
         login = add(
             board, 0, 0, 0, "Электронная почта (не изменяется)", 111, 358, 738, text=user["login"]
         )
         login.set_readonly(True)
-        password = add(
-            board, 0, 0, 0, "Пароль (не изменяется)", 111, 442, 738, text=app.session_password
-        )
-        password.set_readonly(True)
+        self.password = add(board, 0, 0, 0, "Пароль", 111, 442, 738, text=app.session_password)
 
         # «Отмена» возвращает в главное окно, «Сохранить» записывает изменения
         kit.Button(board, 605, 850, 119, 35, "Отмена", self.cancel, "plain")
@@ -81,20 +79,26 @@ class ChairmanEditScreen:
     def save(self):
         """Сохраняет данные председателя и ТСЖ."""
         data = {key: field.get() for key, field in self.fields.items()}
+        # пароль меняется, только если текст в поле отличается от пароля, введённого при входе
+        new_password = self.password.get()
+        if new_password == self.app.session_password:
+            new_password = None
         try:
-            auth.update_chairman(self.user["users_id"], data)
+            auth.update_chairman(self.user["users_id"], data, new_password)
         except AppError as error:
             dialogs.show_error(self.board, str(error))
             return
+        if new_password is not None:
+            self.app.session_password = new_password
         dialogs.show_info(self.board, "Данные сохранены.")
         # в главное окно возвращаемся с обновлёнными данными (в шапке новое ФИО)
         self.app.show_main(auth.get_user(self.user["users_id"]), self.tab)
 
 
 class ResidentEditScreen:
-    """Экран «Редактирование данных жильца» (кадр 22, размер 521x640)."""
+    """Экран «Данные жильца»: ФИО, телефон и пароль можно менять, почту - нельзя."""
 
-    size = (521, 640)
+    size = (521, 665)
     title = "Редактирование данных жильца"
 
     def __init__(self, app, board, user):
@@ -102,29 +106,28 @@ class ResidentEditScreen:
         self.board = board
         self.user = user
 
-        # заголовок в две строки и подсказка
-        board.label(0, 15, 521, "Редактирование\nданных жильца", "Bold", 32)
-        board.label(40, 111, 441, hoa_subtitle(), "ExtraLight", 20, wrap=True)
+        brand_header(
+            board,
+            "Данные жильца",
+            "Измените ФИО, телефон или пароль. Электронная почта не меняется.",
+        )
+        board.shape(38, 222, 445, 364, 22, kit.PANEL_BLUE)
 
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, 0, 0, 0, "ФИО", 83, 225, 355, text=user["full_name"]),
+            "full_name": add(board, 0, 0, 0, "ФИО", 83, 270, 355, text=user["full_name"]),
             "phone": add(
-                board, 0, 0, 0, "Телефон", 83, 309, 355, text=user["phone"], max_length=20
+                board, 0, 0, 0, "Телефон", 83, 354, 355, text=user["phone"], max_length=20
             ),
         }
-        # логин и пароль менять нельзя
         login = add(
-            board, 0, 0, 0, "Электронная почта (не изменяется)", 83, 393, 355, text=user["login"]
+            board, 0, 0, 0, "Электронная почта (не изменяется)", 83, 438, 355, text=user["login"]
         )
         login.set_readonly(True)
-        password = add(
-            board, 0, 0, 0, "Пароль (не изменяется)", 83, 477, 355, text=app.session_password
-        )
-        password.set_readonly(True)
+        self.password = add(board, 0, 0, 0, "Пароль", 83, 522, 355, text=app.session_password)
 
-        kit.Button(board, 127, 565, 119, 35, "Отмена", self.cancel, "plain")
-        kit.Button(board, 260, 565, 133, 35, "Сохранить", self.save)
+        kit.Button(board, 127, 612, 119, 35, "Отмена", self.cancel, "plain")
+        kit.Button(board, 260, 612, 133, 35, "Сохранить", self.save)
         self.fields["full_name"].focus()
 
     def cancel(self):
@@ -133,12 +136,21 @@ class ResidentEditScreen:
 
     def save(self):
         """Сохраняет ФИО и телефон."""
+        # пароль меняется, только если текст в поле отличается от пароля, введённого при входе
+        new_password = self.password.get()
+        if new_password == self.app.session_password:
+            new_password = None
         try:
             auth.update_profile(
-                self.user["users_id"], self.fields["full_name"].get(), self.fields["phone"].get()
+                self.user["users_id"],
+                self.fields["full_name"].get(),
+                self.fields["phone"].get(),
+                new_password,
             )
         except AppError as error:
             dialogs.show_error(self.board, str(error))
             return
+        if new_password is not None:
+            self.app.session_password = new_password
         dialogs.show_info(self.board, "Данные сохранены.")
         self.app.show_main(auth.get_user(self.user["users_id"]))

@@ -32,6 +32,7 @@ DEBT_TINT = "#ffe1d1"
 NEW_TINT = "#fff2b8"
 SELECT_TINT = "#d9e8ff"
 PLACEHOLDER = "#8e8e93"
+MUTED = "#667085"  # приглушённый серый для пояснений
 STATUS_ORANGE = "#ffa100"
 
 
@@ -659,7 +660,14 @@ class DropMenu(tk.Toplevel):
         self.canvas.bind("<FocusOut>", lambda e: self.after(50, self.close_if_unfocused))
         # окно сдвинули, экран сменился или список закрыли иначе - закрываем и меню
         top = board.winfo_toplevel()
-        self.top_binding = (top, top.bind("<Configure>", lambda e: self.close(), "+"))
+        # любой щелчок мыши в окне программы (в том числе по самому списку) закрывает меню;
+        # щелчки внутри меню до окна программы не доходят - это отдельное окно
+        self.top_bindings = (
+            top,
+            top.bind("<Configure>", lambda e: self.close(), "+"),
+            top.bind("<Button-1>", lambda e: self.close(), "+"),
+            top.bind("<FocusOut>", lambda e: self.after(80, self.close_if_unfocused), "+"),
+        )
         board.bind("<Destroy>", lambda e: self.close(), "+")
         self.scroll_to(self.hover)
         self.update_idletasks()
@@ -680,8 +688,10 @@ class DropMenu(tk.Toplevel):
             time.monotonic()
         )  # чтобы щелчок по полю закрывал, а не открывал заново
         try:
-            top, binding = self.top_binding
-            top.unbind("<Configure>", binding)
+            top, configure, click, focus_out = self.top_bindings
+            top.unbind("<Configure>", configure)
+            top.unbind("<Button-1>", click)
+            top.unbind("<FocusOut>", focus_out)
         except tk.TclError:
             pass
         self.destroy()
