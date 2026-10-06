@@ -32,14 +32,24 @@ class AddressServiceTests(unittest.TestCase):
 
     def test_prompt_has_input_and_defaults(self):
         prompt = address.make_prompt("Одоевского 1", "Новосибирская область", "Новосибирск")
-        self.assertIn("Ввод: Одоевского 1", prompt)
+        self.assertTrue(prompt.endswith("Ввод: Одоевского 1\nОтвет:"))
         self.assertIn("город Новосибирск", prompt)
         self.assertIn("Новосибирская область", prompt)
+        self.assertIn("Алматы", prompt)  # пример с другой страной: умолчания не навязываются
 
     def test_answer_validation(self):
         self.assertTrue(address.is_valid(FULL))
-        for wrong in ("", "дом", "Не могу определить адрес", "строка\nвторая 1", "а" * 300 + "1"):
-            self.assertFalse(address.is_valid(wrong))
+        self.assertTrue(address.is_valid("Казахстан, город Алматы, улица Рыскулова, дом 1"))
+        for wrong in (
+            "",
+            "дом",
+            "НЕТ",
+            "Не могу определить адрес 1",
+            "строка\nвторая, дом 1",
+            "а" * 300 + ", дом 1",
+            "Алматы — это не Россия, поэтому: город Новосибирск, дом 1",
+        ):
+            self.assertFalse(address.is_valid(wrong), wrong)
 
     def test_normalize_returns_answer(self):
         with self.settings(), mock.patch.object(address, "ask_deepseek", return_value=FULL) as ask:
