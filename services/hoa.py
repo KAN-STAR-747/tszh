@@ -58,7 +58,7 @@ def resolve_pending_address():
 
 def update_hoa(data):
     """Изменяет данные ТСЖ. data - словарь: hoa_name, inn, address, rate (рубли)."""
-    name = check.require_text(data["hoa_name"], "Наименование ТСЖ")
+    name = check.check_hoa_name(data["hoa_name"])
     inn = check.check_inn(data["inn"])
     rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
     if get_hoa() is None:

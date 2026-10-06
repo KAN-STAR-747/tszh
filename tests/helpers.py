@@ -29,7 +29,7 @@ def apartment_data(number="1", area="40"):
     return {
         "number": number,
         "area": area,
-        "owner_name": "Петров П.П.",
+        "owner_name": "Петров Пётр Петрович",
         "owner_phone": "+79990001122",
         "is_member": True,
     }

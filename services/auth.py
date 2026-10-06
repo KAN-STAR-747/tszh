@@ -43,20 +43,37 @@ def get_chairman():
     return dict(row) if row else None
 
 
+def check_chairman_data(data):
+    """Проверяет поля регистрации председателя (без базы и сети), возвращает очищенные данные."""
+    return {
+        "full_name": check.check_full_name(data["full_name"]),
+        "phone": check.check_phone(data["phone"]),
+        "login": check.check_login(data["login"]),
+        "password": check.check_password(data["password"], data["password2"]),
+        "hoa_name": check.check_hoa_name(data["hoa_name"]),
+        "inn": check.check_inn(data["inn"]),
+        "address": check.require_text(data["address"], "Адрес дома"),
+        "rate": check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2"),
+    }
+
+
+def ensure_login_free(login):
+    """Ошибка, если пользователь с такой почтой (логином) уже есть."""
+    if db.query_one("SELECT 1 FROM users WHERE login = ?", (login,)) is not None:
+        raise AppError("Такой логин уже занят.")
+
+
 def register_chairman(data):
     """Регистрирует председателя и сохраняет данные ТСЖ (всё в одной транзакции).
 
     Возвращает True, если адрес ТСЖ пока не оформлен полностью (нет связи) и ждёт в очереди.
     """
     # Проверяем все поля. Любая ошибка сразу прервёт функцию
-    full_name = check.require_text(data["full_name"], "ФИО")
-    phone = check.check_phone(data["phone"])
-    login = check.check_login(data["login"])
-    password = check.check_password(data["password"], data["password2"])
-    hoa_name = check.require_text(data["hoa_name"], "Наименование ТСЖ")
-    inn = check.check_inn(data["inn"])
-    rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
-    address, pending = hoa.prepare_address(data["address"])  # DeepSeek или очередь
+    fields = check_chairman_data(data)
+    full_name, phone, login = fields["full_name"], fields["phone"], fields["login"]
+    password, hoa_name, inn = fields["password"], fields["hoa_name"], fields["inn"]
+    rate = fields["rate"]
+    address, pending = hoa.prepare_address(fields["address"])  # DeepSeek или очередь
 
     try:
         # Две записи (ТСЖ и председатель) сохраняются вместе: или обе, или ни одной
@@ -91,14 +108,23 @@ def is_owner(user):
     return apartment is not None and is_owner_data(apartment, user["full_name"], user["phone"])
 
 
+def check_resident_data(data):
+    """Проверяет поля регистрации жильца (без базы и сети), возвращает очищенные данные."""
+    return {
+        "full_name": check.check_full_name(data["full_name"]),
+        "phone": check.check_phone(data["phone"]),
+        "login": check.check_login(data["login"]),
+        "password": check.check_password(data["password"], data["password2"]),
+        # Номер квартиры жилец вводит сам; сначала проверяем, что это число
+        "number": check.parse_positive_int(data["apartment_number"], "Квартира"),
+    }
+
+
 def register_resident(data):
     """Регистрирует жильца. Возвращает True, если собственник и вход разрешён сразу."""
-    full_name = check.require_text(data["full_name"], "ФИО")
-    phone = check.check_phone(data["phone"])
-    login = check.check_login(data["login"])
-    password = check.check_password(data["password"], data["password2"])
-    # Номер квартиры жилец вводит сам; сначала проверяем, что это число
-    number = check.parse_positive_int(data["apartment_number"], "Квартира")
+    fields = check_resident_data(data)
+    full_name, phone, login = fields["full_name"], fields["phone"], fields["login"]
+    password, number = fields["password"], fields["number"]
     apartment = apartments.get_apartment_by_number(number)
 
     try:
@@ -210,7 +236,7 @@ def reject_resident(user_id):
 
 def update_profile(user_id, full_name, phone):
     """Изменяет ФИО и телефон пользователя."""
-    full_name = check.require_text(full_name, "ФИО")
+    full_name = check.check_full_name(full_name)
     phone = check.check_phone(phone)
     user = get_user(user_id)
     with db.transaction() as conn:
@@ -228,9 +254,9 @@ def update_profile(user_id, full_name, phone):
 
 def update_chairman(user_id, data):
     """Изменяет данные председателя и данные ТСЖ (всё в одной транзакции)."""
-    full_name = check.require_text(data["full_name"], "ФИО")
+    full_name = check.check_full_name(data["full_name"])
     phone = check.check_phone(data["phone"])
-    hoa_name = check.require_text(data["hoa_name"], "Наименование ТСЖ")
+    hoa_name = check.check_hoa_name(data["hoa_name"])
     inn = check.check_inn(data["inn"])
     address, _ = hoa.prepare_address(data["address"])
     rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")

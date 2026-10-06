@@ -22,6 +22,46 @@ def require_text(value, field_name):
     return value
 
 
+# одно слово ФИО: буквы (кириллица или латиница), части через дефис («Салтыков-Щедрин»)
+NAME_WORD = re.compile(r"[A-Za-zА-Яа-яЁё]{2,}(-[A-Za-zА-Яа-яЁё]{2,})*")
+FULL_NAME_HINT = (
+    "Укажите ФИО полностью: фамилию, имя и отчество (если оно есть), "
+    "например: Талаев Владислав Анатольевич или Талаев Владислав."
+)
+
+
+def check_full_name(value):
+    """Проверяет ФИО (фамилия, имя, отчество по желанию; без инициалов), исправляет регистр."""
+    words = value.split()
+    if not 2 <= len(words) <= 3 or not all(NAME_WORD.fullmatch(word) for word in words):
+        raise AppError(FULL_NAME_HINT)
+    # каждое слово (и каждая часть через дефис) с большой буквы, остальное строчными
+    return " ".join("-".join(part.capitalize() for part in word.split("-")) for word in words)
+
+
+# кавычки и скобки, которые пользователь мог напечатать вокруг названия ТСЖ
+HOA_MARKS = re.compile(r"[\"'`«»“”„‟()\[\]{}<>]")
+MAX_HOA_NAME_LENGTH = 50
+
+
+def check_hoa_name(value):
+    """Приводит название к виду ТСЖ "Название".
+
+    Лишние кавычки, скобки и повторное «ТСЖ» убираются: из ТСЖ"ТСЖ(Березка)", тсж березка и
+    просто Березка получится ТСЖ "Березка".
+    """
+    text = require_text(value, "Наименование ТСЖ")
+    core = HOA_MARKS.sub(" ", text)
+    core = re.sub(r"\bтсж\b", " ", core, flags=re.I)  # слово ТСЖ (в том числе повторное)
+    core = re.sub(r"^ТСЖ(?=[А-ЯЁA-Z])", "", core.strip())  # слитно: ТСЖБерезка
+    core = " ".join(core.split()).strip(" .,;:_-–—")
+    if not core:
+        raise AppError("Укажите название ТСЖ, например: Березка.")
+    if len(core) > MAX_HOA_NAME_LENGTH:
+        raise AppError(f"Название ТСЖ не длиннее {MAX_HOA_NAME_LENGTH} символов.")
+    return f'ТСЖ "{core[0].upper()}{core[1:]}"'
+
+
 def check_inn(value):
     """Проверяет ИНН: ровно 10 цифр."""
     value = value.strip()

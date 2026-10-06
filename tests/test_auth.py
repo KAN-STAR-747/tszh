@@ -73,7 +73,7 @@ class AuthTest(BaseTest):
         apartments.save_apartment(apartment_data())
         auth.register_resident(
             {
-                "full_name": "Смирнов О.Р.",
+                "full_name": "Смирнов Олег Романович",
                 "phone": "+79991112233",
                 "apartment_number": "1",
                 "login": "smirnov@example.com",
@@ -93,7 +93,7 @@ class AuthTest(BaseTest):
         auth.register_chairman(chairman_data())
         apartments.save_apartment(apartment_data("1"))
         data = {
-            "full_name": "Смирнов О.Р.",
+            "full_name": "Смирнов Олег Романович",
             "phone": "+79991112233",
             "apartment_number": "77",
             "login": "smirnov@example.com",
@@ -102,7 +102,7 @@ class AuthTest(BaseTest):
         }
         self.assertFalse(auth.register_resident(data))
         apartment = apartments.get_apartment_by_number(77)
-        self.assertEqual(apartment["owner_name"], "Смирнов О.Р.")
+        self.assertEqual(apartment["owner_name"], "Смирнов Олег Романович")
         data["apartment_number"] = " "
         data["login"] = "smirnov2@example.com"
         with self.assertRaises(AppError):

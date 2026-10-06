@@ -20,7 +20,7 @@ class CrudTest(BaseTest):
         data = chairman_data()
         data.update({"hoa_name": "ТСЖ Новое", "rate": "40"})
         hoa.update_hoa(data)
-        self.assertEqual(hoa.get_hoa()["name"], "ТСЖ Новое")
+        self.assertEqual(hoa.get_hoa()["name"], 'ТСЖ "Новое"')
         self.assertEqual(hoa.get_tariff(), 4000)
 
     def test_delete_hoa_only_without_apartments(self):
@@ -32,9 +32,9 @@ class CrudTest(BaseTest):
 
     def test_update_profile(self):
         user = auth.login_user("ivanov@example.com", "secret12")
-        auth.update_profile(user["users_id"], "Иванов И.П.", "+79991234567")
+        auth.update_profile(user["users_id"], "Иванов Иван Павлович", "+79991234567")
         changed = auth.login_user("ivanov@example.com", "secret12")
-        self.assertEqual(changed["full_name"], "Иванов И.П.")
+        self.assertEqual(changed["full_name"], "Иванов Иван Павлович")
         self.assertEqual(changed["phone"], "+79991234567")
 
     def test_update_and_delete_charge(self):

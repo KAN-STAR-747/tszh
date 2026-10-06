@@ -51,7 +51,7 @@ def save_apartment(data, apartment_id=None):
     """Добавляет квартиру (apartment_id=None) или изменяет существующую."""
     number = check.parse_positive_int(data["number"], "Номер квартиры")
     area = check.parse_positive_number(data["area"], "Площадь")
-    owner_name = check.require_text(data["owner_name"], "ФИО собственника")
+    owner_name = check.check_full_name(data["owner_name"])
     owner_phone = check.check_phone(data["owner_phone"])
     is_member = 1 if data["is_member"] else 0
     try:

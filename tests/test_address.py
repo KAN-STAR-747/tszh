@@ -137,7 +137,7 @@ class AddressQueueTests(BaseTest):
                 {"hoa_name": "ТСЖ Новое", "inn": "1234567890", "address": FULL, "rate": "40"}
             )
         normalize.assert_not_called()
-        self.assertEqual(hoa.get_hoa()["name"], "ТСЖ Новое")
+        self.assertEqual(hoa.get_hoa()["name"], 'ТСЖ "Новое"')
 
     def test_database_schema_is_unchanged(self):
         columns = [row["name"] for row in database.query_all("PRAGMA table_info(hoa)")]

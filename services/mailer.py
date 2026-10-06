@@ -19,13 +19,12 @@ from services import settings
 from services.errors import AppError
 
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
-SUBJECT = "Новый пароль для входа"
 TIMEOUT = 15  # секунд на одно соединение
 
 
-def make_text(password):
-    """Текст письма с новым паролем."""
-    return (
+def password_letter(password):
+    """Тема и текст письма с новым паролем."""
+    return "Новый пароль для входа", (
         "Здравствуйте!\n\n"
         "Вы запросили восстановление аккаунта в системе управления ТСЖ.\n"
         f"Ваш новый пароль: {password}\n\n"
@@ -33,14 +32,25 @@ def make_text(password):
     )
 
 
-def send_by_apps_script(config, recipient, password):
+def code_letter(code):
+    """Тема и текст письма с кодом подтверждения регистрации."""
+    return "Код подтверждения регистрации", (
+        "Здравствуйте!\n\n"
+        "Вы регистрируетесь в системе управления ТСЖ.\n"
+        f"Ваш код подтверждения: {code}\n\n"
+        "Введите его в программе. Код действует 10 минут. "
+        "Если вы не регистрировались, просто проигнорируйте это письмо."
+    )
+
+
+def send_by_apps_script(config, recipient, subject, text):
     """Отправка через скрипт Google (google_mail_script.gs). Отказ скрипта - AppError."""
     body = json.dumps(
         {
             "token": config["apps_script_token"],
             "to": recipient,
-            "subject": SUBJECT,
-            "body": make_text(password),
+            "subject": subject,
+            "body": text,
             "name": config["sender_name"],
         }
     ).encode("utf-8")
@@ -54,14 +64,14 @@ def send_by_apps_script(config, recipient, password):
         raise AppError(f"Скрипт Google не отправил письмо: {answer.get('error', 'неизвестно')}.")
 
 
-def send_by_brevo(config, recipient, password):
+def send_by_brevo(config, recipient, subject, text):
     """Отправка через HTTPS-API Brevo. Ошибки сети и отказ сервиса - OSError."""
     body = json.dumps(
         {
             "sender": {"name": config["sender_name"], "email": config["smtp_user"]},
             "to": [{"email": recipient}],
-            "subject": SUBJECT,
-            "textContent": make_text(password),
+            "subject": subject,
+            "textContent": text,
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -77,13 +87,13 @@ def send_by_brevo(config, recipient, password):
         pass  # ответ 2xx - письмо принято; ошибка придёт исключением HTTPError
 
 
-def send_by_smtp(config, recipient, password):
+def send_by_smtp(config, recipient, subject, text):
     """Отправка через SMTP: порт 465 (SSL), при неудаче соединения - порт 587 (STARTTLS)."""
     message = EmailMessage()
-    message["Subject"] = SUBJECT
+    message["Subject"] = subject
     message["From"] = f"{config['sender_name']} <{config['smtp_user']}>"
     message["To"] = recipient
-    message.set_content(make_text(password))
+    message.set_content(text)
 
     context = ssl.create_default_context()
     last_error = OSError("нет соединения")
@@ -105,7 +115,17 @@ def send_by_smtp(config, recipient, password):
 
 
 def send_password(recipient, password):
-    """Отправляет письмо с новым паролем на адрес recipient.
+    """Отправляет письмо с новым паролем на адрес recipient."""
+    send_mail(recipient, *password_letter(password))
+
+
+def send_code(recipient, code):
+    """Отправляет письмо с кодом подтверждения регистрации на адрес recipient."""
+    send_mail(recipient, *code_letter(code))
+
+
+def send_mail(recipient, subject, text):
+    """Отправляет письмо выбранным в настройках способом.
 
     Raises:
         AppError: почта не настроена или письмо не отправилось.
@@ -118,11 +138,11 @@ def send_password(recipient, password):
         raise AppError("Отправка почты не настроена: заполните файл mail_config.json.")
     try:
         if use_script:
-            send_by_apps_script(config, recipient, password)
+            send_by_apps_script(config, recipient, subject, text)
         elif use_brevo:
-            send_by_brevo(config, recipient, password)
+            send_by_brevo(config, recipient, subject, text)
         else:
-            send_by_smtp(config, recipient, password)
+            send_by_smtp(config, recipient, subject, text)
     except urllib.error.HTTPError as error:  # сервис ответил отказом (например, неверный ключ)
         raise AppError(
             f"Почтовый сервис отклонил письмо (код {error.code}). Проверьте ключ и отправителя."

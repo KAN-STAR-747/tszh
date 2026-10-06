@@ -10,7 +10,7 @@ from tests.helpers import BaseTest, apartment_data, chairman_data
 
 
 def resident_data(
-    login="smirnov@example.com", name="Смирнов О.Р.", phone="+79991112233", number="1"
+    login="smirnov@example.com", name="Смирнов Олег Романович", phone="+79991112233", number="1"
 ):
     """Данные для регистрации жильца (по умолчанию - не собственник квартиры 1)."""
     return {
@@ -26,7 +26,7 @@ def resident_data(
 class OwnerTest(BaseTest):
     """Кто такой собственник и когда вход разрешается без подтверждения."""
 
-    # Перед каждым тестом: председатель и квартира 1 (собственник Петров П.П., +79990001122)
+    # Перед каждым тестом: председатель и квартира 1 (собственник Петров Пётр Петрович)
     def setUp(self):
         super().setUp()
         auth.register_chairman(chairman_data())
@@ -41,7 +41,7 @@ class OwnerTest(BaseTest):
 
     # В реестре телефон +79990001122; жилец вводит его с «8» и пробелами - это тот же номер
     def test_phone_8_and_plus7_are_same(self):
-        data = resident_data("petrov@example.com", "Петров П.П.", "8 999 000 11 22")
+        data = resident_data("petrov@example.com", "Петров Пётр Петрович", "8 999 000 11 22")
         self.assertTrue(auth.register_resident(data))
         user = auth.login_user("petrov@example.com", "pass1234")
         self.assertEqual(user["phone"], "89990001122")  # пробелы в базе не сохраняются
@@ -49,7 +49,11 @@ class OwnerTest(BaseTest):
     # Телефон собственника в реестре записан с «8», жилец вводит его с «+7»
     def test_plus7_matches_8(self):
         apartments.save_apartment(
-            {**apartment_data("2"), "owner_name": "Сидоров С.С.", "owner_phone": "89135554433"}
+            {
+                **apartment_data("2"),
+                "owner_name": "Сидоров Сергей Семёнович",
+                "owner_phone": "89135554433",
+            }
         )
         data = resident_data("sidorov@example.com", "Сидоров Сергей", "+7 913 555 44 33", "2")
         self.assertTrue(auth.register_resident(data))
@@ -64,7 +68,7 @@ class OwnerTest(BaseTest):
         user = auth.login_user("smirnov@example.com", "pass1234")
         self.assertFalse(auth.is_owner(user))
         owner = apartments.get_apartment(user["apartment_id"])["owner_name"]
-        self.assertEqual(owner, "Петров П.П.")
+        self.assertEqual(owner, "Петров Пётр Петрович")
 
     # Квартиры нет в реестре: она создаётся, жилец становится собственником после подтверждения
     def test_new_apartment_owner_by_registration(self):
@@ -123,7 +127,7 @@ class ChairmanEditTest(BaseTest):
         auth.register_chairman(chairman_data())
         user_id = auth.login_user("ivanov@example.com", "secret12")["users_id"]
         data = {
-            "full_name": "Иванов И.П.",
+            "full_name": "Иванов Иван Павлович",
             "phone": "8 999 123 45 67",
             "hoa_name": "ТСЖ Новое",
             "inn": "0987654321",
@@ -132,7 +136,7 @@ class ChairmanEditTest(BaseTest):
         }
         auth.update_chairman(user_id, data)
         self.assertEqual(auth.get_user(user_id)["phone"], "89991234567")  # пробелы убраны
-        self.assertEqual(hoa.get_hoa()["name"], "ТСЖ Новое")
+        self.assertEqual(hoa.get_hoa()["name"], 'ТСЖ "Новое"')
         self.assertEqual(hoa.get_tariff(), 4000)
         data["inn"] = "123"  # неверный ИНН - ничего не сохраняется
         with self.assertRaises(AppError):
