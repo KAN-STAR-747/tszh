@@ -39,5 +39,9 @@ def send_password(recipient, password):
         ) as server:
             server.login(config["smtp_user"], config["smtp_password"])
             server.send_message(message)
+    except smtplib.SMTPAuthenticationError:
+        raise AppError(
+            "Почта отклонила вход: проверьте пароль приложения в mail_config.json."
+        ) from None
     except (smtplib.SMTPException, OSError, ValueError):
         raise AppError("Не удалось отправить письмо. Проверьте подключение к интернету.") from None
