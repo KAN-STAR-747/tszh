@@ -43,5 +43,9 @@ def send_password(recipient, password):
         raise AppError(
             "Почта отклонила вход: проверьте пароль приложения в mail_config.json."
         ) from None
-    except (smtplib.SMTPException, OSError, ValueError):
-        raise AppError("Не удалось отправить письмо. Проверьте подключение к интернету.") from None
+    except (smtplib.SMTPException, OSError, ValueError) as error:
+        # в скобках - техническая причина (например, TimeoutError - почтовый порт закрыт сетью)
+        reason = type(error).__name__
+        raise AppError(
+            f"Не удалось отправить письмо ({reason}). Проверьте подключение к интернету."
+        ) from None
