@@ -1,7 +1,7 @@
 """Экраны входа и регистрации (кадры 00, 02, 03 макета Figma)."""
 
 # сервисы: вход/регистрация и данные ТСЖ
-from services import auth, hoa
+from services import auth, hoa, verification
 
 # наша ошибка, которую нужно показать пользователю
 from services.errors import AppError
@@ -93,6 +93,99 @@ class LoginScreen:
         self.app.session_password = self.password.get()
         # успех - открываем окно по роли
         self.app.show_main(user)
+
+
+def send_code(screen, kind, data):
+    """Отправляет код на почту из формы и открывает экран ввода кода (или показывает ошибку)."""
+    screen.board.configure(cursor="watch")  # отправка письма занимает несколько секунд
+    screen.board.update()
+    try:
+        login = verification.start(kind, data)
+    except AppError as error:
+        screen.board.configure(cursor="")
+        dialogs.show_error(screen.board, str(error))
+        return
+    screen.app.show_verification(kind, data, login)
+
+
+class VerificationScreen:
+    """Экран «Подтверждение почты»: ввод кода из 4 цифр, отправленного на почту."""
+
+    size = (521, 575)
+    title = "Подтверждение почты"
+
+    def __init__(self, app, board, kind, data, login):
+        """
+        Args:
+            kind: verification.CHAIRMAN или verification.RESIDENT.
+            data (dict): данные формы (вернуться назад можно без повторного ввода).
+            login (str): почта, на которую отправлен код.
+        """
+        self.app, self.board = app, board
+        self.kind, self.data, self.login = kind, data, login
+        board.label(0, 100, 496, "Подтверждение почты", "Bold", 32)
+        board.label(
+            49,
+            160,
+            400,
+            f"Мы отправили код из 4 цифр на {login}. Введите его, чтобы завершить регистрацию.",
+            "ExtraLight",
+            20,
+            wrap=True,
+        )
+        self.code = dialogs.add_field(
+            board, 53, 290, 250, "Код из письма", 81, 319, 355, max_length=4
+        )
+        self.code.on_enter(self.confirm)
+        kit.Button(board, 150, 440, 119, 35, "Назад", self.back, "plain")
+        kit.Button(board, 281, 440, 175, 35, "Подтвердить", self.confirm)
+        kit.link(board, 153, 500, 216, "отправить код ещё раз", self.resend)
+        self.code.focus()
+
+    def show_note(self, text, kind):
+        """Плашка с сообщением под полем: красная ("error") или голубая ("info")."""
+        self.board.clear_layer("message")
+        self.board.set_layer("message")
+        kit.note(self.board, 81, 380, 359, 51, text, kind)
+        self.board.set_layer("base")
+
+    def back(self):
+        """Возвращает на форму регистрации с заполненными полями."""
+        verification.cancel(self.login)
+        self.app.show_register(self.kind, self.data)
+
+    def resend(self):
+        """Отправляет новый код."""
+        self.show_note("Отправляем новый код...", "info")
+        self.board.update()
+        try:
+            verification.resend(self.login)
+        except AppError as error:
+            self.show_note(str(error), "error")
+            return
+        self.show_note("Новый код отправлен на почту.", "info")
+
+    def confirm(self):
+        """Проверяет код: верный - создаёт аккаунт."""
+        code = self.code.get().strip()
+        if len(code) != 4 or not code.isdigit():
+            self.show_note("Введите код из 4 цифр.", "error")
+            return
+        try:
+            result = verification.confirm(self.login, code)
+        except AppError as error:
+            self.show_note(str(error), "error")
+            return
+        if self.kind == verification.CHAIRMAN:
+            text = "Председатель зарегистрирован. Войдите в систему."
+            if result:  # адрес ждёт интернета в очереди
+                text += "\nАдрес будет оформлен полностью автоматически, когда появится интернет."
+            dialogs.show_info(self.board, text)
+            self.app.show_login()
+        elif result:  # жилец - собственник из реестра: подтверждение не нужно
+            self.app.show_login("Вы зарегистрированы как собственник. Войдите в систему.", "info")
+        else:  # остальные ждут подтверждения председателя
+            self.app.show_login("Аккаунт ожидает подтверждения председателем")
 
 
 class RecoveryChoiceScreen:
@@ -198,7 +291,7 @@ class ResidentRegisterScreen:
     size = (521, 909)
     title = "Регистрация жильца"
 
-    def __init__(self, app, board):
+    def __init__(self, app, board, data=None):
         self.app = app
         self.board = board
         board.label(62, 68, 335, "Регистрация жильца", "Bold", 32)
@@ -227,6 +320,9 @@ class ResidentRegisterScreen:
         )
         kit.Button(board, 168, 750, 216, 35, "Зарегистрироваться", self.register)
         kit.link(board, 173, 799, 216, "войти", app.show_login)
+        for key, value in (data or {}).items():  # вернулись с экрана ввода кода: поля заполнены
+            if key in self.fields:
+                self.fields[key].set(value)
         self.fields["full_name"].focus()
 
     def refresh_address(self):
@@ -234,22 +330,9 @@ class ResidentRegisterScreen:
         self.board.itemconfigure(self.address_item, text=hoa_subtitle())
 
     def register(self):
-        """Собирает данные формы и регистрирует жильца."""
-        # собираем значения всех полей в один словарь
+        """Проверяет форму и отправляет код подтверждения на почту (аккаунт пока не создаётся)."""
         data = {key: field.get() for key, field in self.fields.items()}
-        try:
-            # регистрируем жильца; True - он собственник из реестра, входить можно сразу
-            approved = auth.register_resident(data)
-        except AppError as error:
-            # показываем окно с текстом ошибки
-            dialogs.show_error(self.board, str(error))
-            return
-        if approved:
-            # голубая плашка: подтверждение не нужно
-            self.app.show_login("Вы зарегистрированы как собственник. Войдите в систему.", "info")
-        else:
-            # красная плашка, как в макете: ждём подтверждения председателя
-            self.app.show_login("Аккаунт ожидает подтверждения председателем")
+        send_code(self, verification.RESIDENT, data)
 
 
 class ChairmanRegisterScreen:
@@ -258,7 +341,7 @@ class ChairmanRegisterScreen:
     size = (952, 919)
     title = "Регистрация председателя ТСЖ"
 
-    def __init__(self, app, board):
+    def __init__(self, app, board, data=None):
         self.app = app
         self.board = board
         board.label(52, 68, 525, "Регистрация председателя ТСЖ", "Bold", 32)
@@ -292,21 +375,12 @@ class ChairmanRegisterScreen:
         # «Отмена» закрывает программу: без председателя работать нельзя
         kit.Button(board, 539, 850, 119, 35, "Отмена", app.root.destroy, "plain")
         kit.Button(board, 668, 850, 216, 35, "Зарегистрироваться", self.register)
+        for key, value in (data or {}).items():  # вернулись с экрана ввода кода: поля заполнены
+            if key in self.fields:
+                self.fields[key].set(value)
         self.fields["full_name"].focus()
 
     def register(self):
-        """Собирает данные формы и регистрирует председателя."""
+        """Проверяет форму и отправляет код подтверждения на почту (аккаунт пока не создаётся)."""
         data = {key: field.get() for key, field in self.fields.items()}
-        try:
-            # сохраняем председателя и данные ТСЖ
-            queued = auth.register_chairman(data)
-        except AppError as error:
-            dialogs.show_error(self.board, str(error))
-            return
-        # сообщение об успехе
-        text = "Председатель зарегистрирован. Войдите в систему."
-        if queued:
-            text += "\nАдрес будет оформлен полностью автоматически, когда появится интернет."
-        dialogs.show_info(self.board, text)
-        # после регистрации открываем вход
-        self.app.show_login()
+        send_code(self, verification.CHAIRMAN, data)

@@ -10,6 +10,7 @@ from ui.auth_screens import (
     LoginScreen,
     RecoveryChoiceScreen,
     RecoveryScreen,
+    VerificationScreen,
     ResidentRegisterScreen,
 )
 from ui.edit_screens import ChairmanEditScreen, ResidentEditScreen
@@ -157,9 +158,20 @@ class App:
         self.session_password = ""  # вышли из аккаунта - забываем пароль
         self.show(LoginScreen, message, kind)
 
-    def show_resident_register(self):
-        """Экран регистрации жильца."""
-        self.show(ResidentRegisterScreen)
+    def show_resident_register(self, data=None):
+        """Экран регистрации жильца (data - уже введённые поля)."""
+        self.show(ResidentRegisterScreen, data)
+
+    def show_register(self, kind, data=None):
+        """Форма регистрации жильца или председателя (после возврата с экрана ввода кода)."""
+        if kind == "chairman":
+            self.show(ChairmanRegisterScreen, data)
+        else:
+            self.show_resident_register(data)
+
+    def show_verification(self, kind, data, login):
+        """Экран ввода кода, отправленного на почту при регистрации."""
+        self.show(VerificationScreen, kind, data, login)
 
     def show_recovery_choice(self):
         """Окно «Чей аккаунт восстановить» (кадр 25)."""

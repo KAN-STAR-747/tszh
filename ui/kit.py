@@ -12,6 +12,7 @@ import ctypes
 import math
 import os
 import sys
+import time
 import tkinter as tk
 
 from tkinter import font as tkfont
@@ -587,6 +588,190 @@ class TextBox:
         self.text.delete("1.0", "end")
 
 
+class DropMenu(tk.Toplevel):
+    """Меню выпадающего списка: белая карточка с рамкой и подсветкой строки под курсором.
+
+    Закрывается по выбору пункта, клавише Esc, щелчку вне меню и при движении окна.
+    Длинный список листается колесом мыши, по пунктам можно ходить стрелками.
+    """
+
+    ROW = 40  # высота строки в пикселях макета
+    PAD = 6  # отступ внутри карточки сверху и снизу
+    MAX_ROWS = 7  # сколько строк видно без прокрутки
+    BORDER = "#cfd8e3"
+
+    def __init__(self, drop):
+        super().__init__(drop.board)
+        self.drop = drop
+        self.values = drop.values
+        self.row_h = S(self.ROW)
+        self.pad = S(self.PAD)
+        x, y, w, h = drop.rect
+        rows = min(len(self.values), self.MAX_ROWS)
+        self.width = S(w)
+        self.height = rows * self.row_h + 2 * self.pad
+        self.hover = max(drop.index, 0)
+        self.top = 0  # номер первой видимой строки (прокрутка)
+        self.closed = False
+
+        self.overrideredirect(True)  # без рамки и заголовка окна
+        self.attributes("-topmost", True)
+        board = drop.board
+        # под полем; если снизу не хватает места - над полем
+        left = board.winfo_rootx() + S(x)
+        below = board.winfo_rooty() + S(y + h) + S(4)
+        if below + self.height > self.winfo_screenheight():
+            below = board.winfo_rooty() + S(y) - S(4) - self.height
+        self.geometry(f"{self.width}x{self.height}+{left}+{max(below, 0)}")
+
+        self.canvas = tk.Canvas(
+            self,
+            width=self.width,
+            height=self.height,
+            bg=WHITE,
+            highlightthickness=1,
+            highlightbackground=self.BORDER,
+            highlightcolor=self.BORDER,
+            takefocus=True,
+        )
+        self.canvas.pack(fill="both", expand=True)
+        # скруглённая подсветка строки: одна картинка, которую переносим на нужную строку
+        self.light, self.light_pad = shape_image(
+            self.width - 2 * self.pad, self.row_h - S(4), S(8), PANEL_BLUE
+        )
+        self.light_item = self.canvas.create_image(0, 0, anchor="nw", image=self.light)
+        self.scroll_item = self.canvas.create_rectangle(0, 0, 0, 0, fill="#c4ccd6", outline="")
+        self.texts = []
+        for _ in range(rows):
+            self.texts.append(self.canvas.create_text(0, 0, anchor="w"))
+        self.draw()
+
+        self.canvas.bind("<Motion>", self.on_motion)
+        self.canvas.bind(
+            "<Leave>", lambda e: self.canvas.itemconfigure(self.light_item, state="hidden")
+        )
+        self.canvas.bind("<ButtonRelease-1>", self.on_click)
+        self.canvas.bind("<MouseWheel>", self.on_wheel)
+        self.canvas.bind("<Up>", lambda e: self.step(-1))
+        self.canvas.bind("<Down>", lambda e: self.step(1))
+        self.canvas.bind("<Return>", lambda e: self.pick(self.hover))
+        self.canvas.bind("<Escape>", lambda e: self.close())
+        self.canvas.bind("<FocusOut>", lambda e: self.after(50, self.close_if_unfocused))
+        # окно сдвинули, экран сменился или список закрыли иначе - закрываем и меню
+        top = board.winfo_toplevel()
+        self.top_binding = (top, top.bind("<Configure>", lambda e: self.close(), "+"))
+        board.bind("<Destroy>", lambda e: self.close(), "+")
+        self.scroll_to(self.hover)
+        self.update_idletasks()
+        self.canvas.focus_force()
+
+    def close_if_unfocused(self):
+        """Закрывает меню, если фокус ушёл на другое окно или на другой элемент."""
+        if not self.closed and self.focus_displayof() is None:
+            self.close()
+
+    def close(self):
+        """Закрывает меню (повторный вызов безопасен)."""
+        if self.closed:
+            return
+        self.closed = True
+        self.drop.menu = None
+        self.drop.closed_at = (
+            time.monotonic()
+        )  # чтобы щелчок по полю закрывал, а не открывал заново
+        try:
+            top, binding = self.top_binding
+            top.unbind("<Configure>", binding)
+        except tk.TclError:
+            pass
+        self.destroy()
+
+    def draw(self):
+        """Рисует видимые строки и полосу прокрутки."""
+        total = len(self.values)
+        for line, item in enumerate(self.texts):
+            number = self.top + line
+            selected = number == self.drop.index
+            y = self.pad + line * self.row_h + self.row_h / 2
+            self.canvas.coords(item, S(16), y)
+            self.canvas.itemconfigure(
+                item,
+                text=self.drop.board.fit_text(
+                    self.values[number], "Regular", 14, self.drop.rect[2] - 50
+                ),
+                font=font("Bold" if selected else "Regular", 14),
+                fill=BLUE if selected else BLACK,
+            )
+        if total > self.MAX_ROWS:  # полоса прокрутки справа
+            track = self.height - 2 * self.pad
+            bar = max(track * self.MAX_ROWS / total, S(24))
+            start = self.pad + (track - bar) * self.top / (total - self.MAX_ROWS)
+            self.canvas.coords(
+                self.scroll_item, self.width - S(8), start, self.width - S(4), start + bar
+            )
+        self.place_light()
+
+    def place_light(self):
+        """Переносит подсветку на строку под курсором."""
+        line = self.hover - self.top
+        if 0 <= line < len(self.texts):
+            self.canvas.coords(
+                self.light_item,
+                self.pad - self.light_pad,
+                self.pad + line * self.row_h + S(2) - self.light_pad,
+            )
+            self.canvas.itemconfigure(self.light_item, state="normal")
+            self.canvas.tag_lower(self.light_item)
+        else:
+            self.canvas.itemconfigure(self.light_item, state="hidden")
+
+    def scroll_to(self, number):
+        """Прокручивает список так, чтобы строка number была видна."""
+        limit = len(self.values) - len(self.texts)
+        if number < self.top:
+            self.top = number
+        elif number >= self.top + len(self.texts):
+            self.top = number - len(self.texts) + 1
+        self.top = max(0, min(self.top, limit))
+        self.draw()
+
+    def row_at(self, y):
+        """Номер пункта под координатой y или None, если там отступ."""
+        line = (y - self.pad) // self.row_h
+        if 0 <= line < len(self.texts) and y >= self.pad:
+            return self.top + int(line)
+        return None
+
+    def on_motion(self, event):
+        number = self.row_at(event.y)
+        if number is not None and number != self.hover:
+            self.hover = number
+            self.place_light()
+        elif number is None:
+            self.canvas.itemconfigure(self.light_item, state="hidden")
+
+    def on_click(self, event):
+        number = self.row_at(event.y)
+        if number is not None:
+            self.pick(number)
+
+    def on_wheel(self, event):
+        self.top = max(
+            0, min(self.top - (1 if event.delta > 0 else -1), len(self.values) - len(self.texts))
+        )
+        self.draw()
+
+    def step(self, delta):
+        """Стрелки вверх и вниз."""
+        self.hover = max(0, min(self.hover + delta, len(self.values) - 1))
+        self.scroll_to(self.hover)
+
+    def pick(self, number):
+        """Выбирает пункт и закрывает меню."""
+        self.close()
+        self.drop.select(number)
+
+
 # Выпадающий список: рамка, текст, стрелка. По щелчку открывается меню
 class DropBox:
     """Выпадающий список: значение и стрелка справа. По щелчку открывается меню."""
@@ -594,6 +779,7 @@ class DropBox:
     def __init__(self, board, x, y, w, h, values, index=0, command=None, size=12):
         self.board, self.rect, self.size = board, (x, y, w, h), size
         self.values, self.command = list(values), command
+        self.menu, self.closed_at = None, 0.0  # открытое меню и время его закрытия
         # номер выбранного пункта
         self.index = index if self.values else -1
         normal, pad = shape_image(S(w), S(h), S(8), WHITE, BLACK, line_width(1))
@@ -629,17 +815,12 @@ class DropBox:
 
     # Меню со всеми пунктами под полем
     def _open_menu(self):
-        # обычное меню Tkinter
-        menu = tk.Menu(self.board, tearoff=0, font=font("Regular", 16), bg=WHITE)
-        for position, value in enumerate(self.values):
-            # lambda p=position запоминает номер пункта для этой строки меню
-            menu.add_command(label=value, command=lambda p=position: self.select(p))
-        x, y, w, h = self.rect
-        try:
-            # показываем меню под полем
-            menu.tk_popup(self.board.winfo_rootx() + S(x), self.board.winfo_rooty() + S(y + h))
-        finally:
-            menu.grab_release()
+        # щелчок по полю, когда меню открыто, лишь закрывает его (меню закрылось по потере фокуса)
+        if self.menu is not None or not self.values:
+            return
+        if time.monotonic() - self.closed_at < 0.25:
+            return
+        self.menu = DropMenu(self)
 
     # Выбираем пункт и сообщаем об этом
     def select(self, position, notify=True):
