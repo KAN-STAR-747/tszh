@@ -5,7 +5,7 @@ import os  # os.urandom даёт случайные байты для соли
 import sqlite3
 
 from db import database as db
-from services import apartments, mailer, password_generator
+from services import apartments, hoa, mailer, password_generator
 from services import validation as check
 from services.errors import AppError
 
@@ -44,7 +44,10 @@ def get_chairman():
 
 
 def register_chairman(data):
-    """Регистрирует председателя и сохраняет данные ТСЖ (всё в одной транзакции)."""
+    """Регистрирует председателя и сохраняет данные ТСЖ (всё в одной транзакции).
+
+    Возвращает True, если адрес ТСЖ пока не оформлен полностью (нет связи) и ждёт в очереди.
+    """
     # Проверяем все поля. Любая ошибка сразу прервёт функцию
     full_name = check.require_text(data["full_name"], "ФИО")
     phone = check.check_phone(data["phone"])
@@ -52,8 +55,8 @@ def register_chairman(data):
     password = check.check_password(data["password"], data["password2"])
     hoa_name = check.require_text(data["hoa_name"], "Наименование ТСЖ")
     inn = check.check_inn(data["inn"])
-    address = check.require_text(data["address"], "Адрес дома")
     rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
+    address, pending = hoa.prepare_address(data["address"])  # DeepSeek или очередь
 
     try:
         # Две записи (ТСЖ и председатель) сохраняются вместе: или обе, или ни одной
@@ -70,6 +73,7 @@ def register_chairman(data):
             )
     except sqlite3.IntegrityError:  # сработал UNIQUE по логину
         raise AppError("Такой логин уже занят.") from None
+    return pending
 
 
 def is_owner_data(apartment, full_name, phone):
@@ -228,7 +232,7 @@ def update_chairman(user_id, data):
     phone = check.check_phone(data["phone"])
     hoa_name = check.require_text(data["hoa_name"], "Наименование ТСЖ")
     inn = check.check_inn(data["inn"])
-    address = check.require_text(data["address"], "Адрес дома")
+    address, _ = hoa.prepare_address(data["address"])
     rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
     with db.transaction() as conn:
         conn.execute(

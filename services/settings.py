@@ -18,6 +18,8 @@ DEFAULTS = {
     "apps_script_url": "",  # если задан, письма идут через скрипт Google (HTTPS) - основной способ
     "apps_script_token": "",
     "brevo_api_key": "",  # если задан, письма идут через Brevo по HTTPS, а не через SMTP
+    "default_region": "Новосибирская область",  # подставляется, если в адресе нет региона
+    "default_city": "Новосибирск",
     "smtp_host": "smtp.gmail.com",
     "smtp_port": 465,
     "smtp_user": "",

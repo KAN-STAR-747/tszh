@@ -1,6 +1,9 @@
 """Главный класс программы: хранит окно и переключает экраны."""
 
-from services import auth
+import threading
+import time
+
+from services import auth, hoa
 from ui import dialogs, kit
 from ui.auth_screens import (
     ChairmanRegisterScreen,
@@ -12,6 +15,10 @@ from ui.auth_screens import (
 from ui.edit_screens import ChairmanEditScreen, ResidentEditScreen
 from ui.main_screen import MainScreen
 from ui.resident_screen import ResidentScreen
+
+# как часто окно проверяет очередь (мс) и как часто повторяет запрос к нейросети (секунд)
+ADDRESS_POLL_MS = 3000
+ADDRESS_RETRY_SECONDS = 30
 
 
 class App:
@@ -42,8 +49,38 @@ class App:
         root.bind("<Escape>", self.leave_fullscreen)
         # любая неожиданная ошибка пойдёт в handle_error, а не закроет программу
         root.report_callback_exception = self.handle_error
+        # адрес ТСЖ, введённый без интернета, оформляется в фоне, когда связь появится
+        self.address_busy = False  # идёт ли сейчас фоновый запрос
+        self.address_done = False  # фоновый запрос заменил адрес на полный
+        self.address_tried = float("-inf")  # время последней попытки
         # показываем первый экран
         self.show_start_screen()
+        self.watch_address()
+
+    def watch_address(self):
+        """Следит за очередью адреса: при появлении интернета подставляет полный адрес."""
+        if self.address_done:  # результат принимаем в потоке окна: Tkinter не терпит чужих потоков
+            self.address_done = False
+            refresh = getattr(self.screen, "refresh_address", None)
+            if refresh is not None:
+                refresh()
+        elif (
+            not self.address_busy and time.monotonic() - self.address_tried > ADDRESS_RETRY_SECONDS
+        ):
+            if hoa.has_pending_address():
+                self.address_busy = True
+                self.address_tried = time.monotonic()
+                threading.Thread(target=self.resolve_address, daemon=True).start()
+        self.root.after(ADDRESS_POLL_MS, self.watch_address)
+
+    def resolve_address(self):
+        """Фоновый поток: один запрос к нейросети, окно в это время не замирает."""
+        try:
+            self.address_done = hoa.resolve_pending_address()
+        except Exception:  # любой сбой (например, база занята) - попробуем в следующий раз
+            self.address_done = False
+        finally:
+            self.address_busy = False
 
     def set_icon(self):
         """Ставит логотип в заголовок окна (если файл логотипа есть)."""

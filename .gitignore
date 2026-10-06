@@ -13,3 +13,6 @@ dist/
 shots/
 # настройки почты с паролями и ключами (образец - mail_config.example.json)
 mail_config.json
+
+# очередь оформления адреса (создаётся программой при отсутствии интернета)
+address_queue.json

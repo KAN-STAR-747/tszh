@@ -52,7 +52,7 @@ class MainScreen:
         self.current_index = 0
 
         info = hoa.get_hoa()
-        kit.header(board, info["name"], info["address"], 20)
+        self.address_item = kit.header(board, info["name"], info["address"], 20)
         board.label(
             1062, 35, 291, f"{short_name(user['full_name'])}  *  Председатель", "Regular", 20
         )
@@ -61,6 +61,10 @@ class MainScreen:
         board.hline(0, 98, 1588)
         board.hline(0, 183, 1588)
         self.show_tab(tab)
+
+    def refresh_address(self):
+        """Подставляет в шапку полный адрес, когда он оформлен (после очереди)."""
+        self.board.itemconfigure(self.address_item, text=hoa.get_hoa()["address"])
 
     def open_settings(self):
         self.app.show_chairman_edit(self.user, self.current_index)

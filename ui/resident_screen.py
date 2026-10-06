@@ -39,7 +39,7 @@ class ResidentScreen:
         self.requests_offset = 0
 
         info = hoa.get_hoa()
-        kit.header(board, info["name"], info["address"], 18)
+        self.address_item = kit.header(board, info["name"], info["address"], 18)
         caption = f"{short_name(user['full_name'])} * кв.{self.apartment['number']}"
         board.label(1104, 32, 291, caption, "Regular", 20)
         kit.Button(board, 1376, 29, 119, 35, "Выйти", app.show_login, "plain")
@@ -87,6 +87,10 @@ class ResidentScreen:
         board.label(937, 545, 291, "Мои заявки", "Bold", 20)
         board.add_wheel_area(988, 528, 546, 310, self.scroll_requests)
         self.refresh()
+
+    def refresh_address(self):
+        """Подставляет в шапку полный адрес, когда он оформлен (после очереди)."""
+        self.board.itemconfigure(self.address_item, text=hoa.get_hoa()["address"])
 
     def refresh(self):
         """Обновляет долг, историю операций и список «Мои заявки»."""

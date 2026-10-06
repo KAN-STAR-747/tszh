@@ -5,19 +5,13 @@
 всё равно работало.
 """
 
-import json
 import re
 import secrets
 import string
-import urllib.request
 
-from services import settings
+from services import deepseek, settings
 
 PASSWORD_LENGTH = 8
-API_URL = "https://api.deepseek.com/chat/completions"
-MODEL = "deepseek-chat"
-TIMEOUT = 20  # секунд на ответ сервиса
-
 PROMPT = (
     f"Придумай случайный пароль ровно из {PASSWORD_LENGTH} символов: только латинские буквы "
     "(большие и маленькие) и цифры, хотя бы одна буква и хотя бы одна цифра. "
@@ -46,22 +40,7 @@ def random_password():
 
 def ask_deepseek(api_key):
     """Просит DeepSeek придумать пароль. Возвращает строку ответа без лишних символов."""
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "messages": [{"role": "user", "content": PROMPT}],
-            "temperature": 1.5,  # выше значение - более случайный ответ
-            "max_tokens": 30,
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        API_URL,
-        data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-    )
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-        answer = json.load(response)
-    return answer["choices"][0]["message"]["content"].strip().strip("`'\" \n")
+    return deepseek.ask(api_key, PROMPT, temperature=1.5, max_tokens=30)
 
 
 def generate_password():

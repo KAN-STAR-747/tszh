@@ -2,10 +2,11 @@
 
 import os
 import tempfile
-
 import unittest
+from unittest import mock
 
 from db import database
+from services import address
 
 
 def chairman_data():
@@ -35,13 +36,25 @@ def apartment_data(number="1", area="40"):
 
 
 class BaseTest(unittest.TestCase):
-    """Перед каждым тестом создаёт чистую временную базу."""
+    """Перед каждым тестом создаёт чистую временную базу.
+
+    Нейросеть подменена (адрес остаётся как введён), очередь адреса лежит во временной папке.
+    """
 
     def setUp(self):
         handle, self.path = tempfile.mkstemp(suffix=".db")
         os.close(handle)
         database.DB_PATH = self.path
         database.init_db()
+        self.queue_file = self.path + ".queue.json"
+        for patcher in (
+            mock.patch.object(address, "queue_path", return_value=self.queue_file),
+            mock.patch.object(address, "normalize", side_effect=lambda raw: raw),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def tearDown(self):
         os.remove(self.path)
+        if os.path.exists(self.queue_file):
+            os.remove(self.queue_file)

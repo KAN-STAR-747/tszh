@@ -5,9 +5,10 @@
 """
 
 import os
+from unittest import mock
 
 from db import database
-from services import apartments, auth, finance, requests_service
+from services import address, apartments, auth, finance, requests_service
 from services import validation
 
 APARTMENTS = [
@@ -28,19 +29,21 @@ def fill():
         os.remove(database.DB_PATH)
     database.init_db()
 
-    auth.register_chairman(
-        {
-            "full_name": "Иванов Иван Иванович",
-            "phone": "+7 777 777 77 77",
-            "login": "ivanov@example.com",
-            "password": "ivanov123",
-            "password2": "ivanov123",
-            "hoa_name": 'ТСЖ "Березка"',
-            "inn": "1234567890",
-            "address": "г. Новосибирск, ул. Примерная, 10",
-            "rate": "32,50",
-        }
-    )
+    # адрес записан сразу полным, поэтому запрос к нейросети для тестовых данных не нужен
+    with mock.patch.object(address, "normalize", side_effect=lambda raw: raw):
+        auth.register_chairman(
+            {
+                "full_name": "Иванов Иван Иванович",
+                "phone": "+7 777 777 77 77",
+                "login": "ivanov@example.com",
+                "password": "ivanov123",
+                "password2": "ivanov123",
+                "hoa_name": 'ТСЖ "Березка"',
+                "inn": "1234567890",
+                "address": "Новосибирская область, город Новосибирск, улица Примерная, дом 10",
+                "rate": "32,50",
+            }
+        )
     for number, area, owner, phone, is_member in APARTMENTS:
         apartments.save_apartment(
             {

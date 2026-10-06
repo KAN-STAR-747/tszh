@@ -39,7 +39,7 @@ class LoginScreen:
         self.board = board
         # label(x, y, ширина, текст, шрифт, размер) - надпись; координаты берём из Figma
         board.label(32, 83, 335, "Вход в систему", "Bold", 32)
-        board.label(49, 126, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
+        self.address_item = board.label(49, 126, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
 
         board.label(53, 215, 250, "Электронная почта", "Regular", 16)
         # поле ввода: x, y, ширина, высота
@@ -67,6 +67,10 @@ class LoginScreen:
         kit.link(board, 168, 538, 216, "зарегистрироваться", app.show_resident_register)
         # курсор сразу в поле логина
         self.login.focus()
+
+    def refresh_address(self):
+        """Подставляет полный адрес, когда он оформлен (после очереди)."""
+        self.board.itemconfigure(self.address_item, text=hoa_subtitle())
 
     def show_message(self, text):
         """Показывает красную плашку с текстом ошибки."""
@@ -198,7 +202,7 @@ class ResidentRegisterScreen:
         self.app = app
         self.board = board
         board.label(62, 68, 335, "Регистрация жильца", "Bold", 32)
-        board.label(48, 111, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
+        self.address_item = board.label(48, 111, 309, hoa_subtitle(), "ExtraLight", 20, wrap=True)
 
         # словарь полей формы: ключ совпадает с ключом данных для сервиса
         self.fields = {
@@ -224,6 +228,10 @@ class ResidentRegisterScreen:
         kit.Button(board, 168, 750, 216, 35, "Зарегистрироваться", self.register)
         kit.link(board, 173, 799, 216, "войти", app.show_login)
         self.fields["full_name"].focus()
+
+    def refresh_address(self):
+        """Подставляет полный адрес, когда он оформлен (после очереди)."""
+        self.board.itemconfigure(self.address_item, text=hoa_subtitle())
 
     def register(self):
         """Собирает данные формы и регистрирует жильца."""
@@ -291,11 +299,14 @@ class ChairmanRegisterScreen:
         data = {key: field.get() for key, field in self.fields.items()}
         try:
             # сохраняем председателя и данные ТСЖ
-            auth.register_chairman(data)
+            queued = auth.register_chairman(data)
         except AppError as error:
             dialogs.show_error(self.board, str(error))
             return
         # сообщение об успехе
-        dialogs.show_info(self.board, "Председатель зарегистрирован. Войдите в систему.")
+        text = "Председатель зарегистрирован. Войдите в систему."
+        if queued:
+            text += "\nАдрес будет оформлен полностью автоматически, когда появится интернет."
+        dialogs.show_info(self.board, text)
         # после регистрации открываем вход
         self.app.show_login()
