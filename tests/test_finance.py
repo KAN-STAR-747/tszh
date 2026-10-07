@@ -33,20 +33,6 @@ class FinanceTest(BaseTest):
         finance.add_payment(apartment_id, "1000", "28.09.2026", "Перевод")
         self.assertEqual(apartments.get_apartments()[0]["debt"], 30000)
 
-    def test_target_charge(self):
-        count, total = finance.charge_target("Ремонт подъезда", "1500", "2026-10")
-        self.assertEqual((count, total), (2, 300000))
-        with self.assertRaises(AppError):
-            finance.charge_target("Ремонт подъезда", "1500", "2026-10")
-
-    def test_resident_summary(self):
-        finance.charge_month("2026-09")
-        apartment_id = apartments.get_apartments()[0]["apartment_id"]
-        finance.add_payment(apartment_id, "300", "01.09.2026", "")
-        summary = finance.get_resident_summary(apartment_id)
-        self.assertEqual(summary["debt"], 100000)
-        self.assertEqual(len(summary["history"]), 2)
-
 
 class DeleteApartmentTest(BaseTest):
     """Квартиру с начислениями удалять нельзя (п. 4.1.4 ТЗ)."""

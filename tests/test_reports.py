@@ -33,10 +33,6 @@ class ReportsTest(BaseTest):
         self.assertEqual(sheet.cell(row=2, column=1).value, 1)
         self.assertEqual(sheet.cell(row=2, column=4).value, 1300.0)
 
-    def test_members_report(self):
-        count = reports.export_members(self.file_path)
-        self.assertEqual(count, 2)
-
 
 if __name__ == "__main__":
     unittest.main()

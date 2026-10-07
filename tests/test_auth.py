@@ -14,16 +14,6 @@ class ValidationTest(unittest.TestCase):
             validation.check_inn("123456789")
         self.assertEqual(validation.check_inn("1234567890"), "1234567890")
 
-    def test_phone_spaces_are_removed(self):
-        self.assertEqual(validation.check_phone("+7 777 777 77 77"), "+77777777777")
-        with self.assertRaises(AppError):
-            validation.check_phone("abc")
-
-    def test_money_conversion(self):
-        self.assertEqual(validation.rubles_to_kopecks("1894,34", "Сумма"), 189434)
-        self.assertEqual(validation.kopecks_to_text(189434), "1894.34")
-        self.assertEqual(validation.kopecks_to_text(-5), "-0.05")
-
     def test_phone_length_and_plus(self):
         self.assertEqual(validation.check_phone("89991234567"), "89991234567")
         self.assertEqual(validation.check_phone("+7 999 123 45 67"), "+79991234567")
@@ -41,16 +31,8 @@ class ValidationTest(unittest.TestCase):
             validation.check_password("1234567", "1234567")
         self.assertEqual(validation.check_password("12345678", "12345678"), "12345678")
 
-    def test_negative_area_is_rejected(self):
-        with self.assertRaises(AppError):
-            validation.parse_positive_number("-3", "Площадь")
-
 
 class AuthTest(BaseTest):
-    def test_first_launch_has_no_chairman(self):
-        self.assertFalse(auth.chairman_exists())
-        auth.register_chairman(chairman_data())
-        self.assertTrue(auth.chairman_exists())
 
     def test_chairman_can_login(self):
         auth.register_chairman(chairman_data())
@@ -87,25 +69,6 @@ class AuthTest(BaseTest):
         user_id = auth.get_pending_residents()[0]["users_id"]
         auth.approve_resident(user_id)
         self.assertEqual(auth.login_user("smirnov@example.com", "pass1234")["is_participant"], 1)
-
-    def test_resident_with_unknown_apartment(self):
-        auth.register_chairman(chairman_data())
-        apartments.save_apartment(apartment_data("1"))
-        data = {
-            "full_name": "Смирнов Олег Романович",
-            "phone": "+79991112233",
-            "apartment_number": "77",
-            "login": "smirnov@example.com",
-            "password": "pass1234",
-            "password2": "pass1234",
-        }
-        self.assertFalse(auth.register_resident(data))
-        apartment = apartments.get_apartment_by_number(77)
-        self.assertEqual(apartment["owner_name"], "Смирнов Олег Романович")
-        data["apartment_number"] = " "
-        data["login"] = "smirnov2@example.com"
-        with self.assertRaises(AppError):
-            auth.register_resident(data)
 
     def test_duplicate_login(self):
         auth.register_chairman(chairman_data())

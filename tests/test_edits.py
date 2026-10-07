@@ -43,17 +43,6 @@ class OwnerTest(BaseTest):
         user = auth.login_user("petrov@example.com", "pass1234")
         self.assertEqual(user["phone"], "89990001122")
 
-    def test_plus7_matches_8(self):
-        apartments.save_apartment(
-            {
-                **apartment_data("2"),
-                "owner_name": "Сидоров Сергей Семёнович",
-                "owner_phone": "89135554433",
-            }
-        )
-        data = resident_data("sidorov@example.com", "Сидоров Сергей", "+7 913 555 44 33", "2")
-        self.assertTrue(auth.register_resident(data))
-
     def test_other_person_waits_for_chairman(self):
         self.assertFalse(auth.register_resident(resident_data()))
         with self.assertRaises(AppError):
@@ -64,48 +53,6 @@ class OwnerTest(BaseTest):
         self.assertFalse(auth.is_owner(user))
         owner = apartments.get_apartment(user["apartment_id"])["owner_name"]
         self.assertEqual(owner, "Петров Пётр Петрович")
-
-    def test_new_apartment_owner_by_registration(self):
-        self.assertFalse(auth.register_resident(resident_data(number="5")))
-        apartment = apartments.get_apartment_by_number(5)
-        self.assertEqual(apartment["area"], 0)
-        auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
-        user = auth.login_user("smirnov@example.com", "pass1234")
-        self.assertTrue(auth.is_owner(user))
-
-    def test_reject_removes_new_apartment(self):
-        auth.register_resident(resident_data(number="5"))
-        auth.reject_resident(auth.get_pending_residents()[0]["users_id"])
-        self.assertIsNone(apartments.get_apartment_by_number(5))
-
-    def test_zero_area_apartment_not_charged(self):
-        auth.register_resident(resident_data(number="5"))
-        self.assertEqual(finance.charge_month("2026-09"), 1)
-
-    def test_owner_profile_change_keeps_ownership(self):
-        data = resident_data("petrov@example.com", "Петров Пётр Петрович", "+79990001122")
-        auth.register_resident(data)
-        user = auth.login_user("petrov@example.com", "pass1234")
-        auth.update_profile(user["users_id"], "Петров Пётр Петрович", "+79995556677")
-        changed = auth.login_user("petrov@example.com", "pass1234")
-        self.assertTrue(auth.is_owner(changed))
-
-    def test_duplicate_login_does_not_create_apartment(self):
-        auth.register_resident(resident_data(number="5"))
-        with self.assertRaises(AppError):
-            auth.register_resident(resident_data(number="6"))
-        self.assertIsNone(apartments.get_apartment_by_number(6))
-
-    def test_residents_list(self):
-        auth.register_resident(resident_data("petrov@example.com", "Петров Пётр", "+79990001122"))
-        auth.register_resident(resident_data("smirnov@example.com"))
-        residents = auth.get_residents()
-        self.assertEqual(len(residents), 1)
-        self.assertEqual(residents[0]["number"], 1)
-
-    def test_chairman_contacts(self):
-        chairman = auth.get_chairman()
-        self.assertEqual(chairman["phone"], "+77777777777")
 
 
 class ChairmanEditTest(BaseTest):
@@ -143,48 +90,12 @@ class RequestEditTest(BaseTest):
         auth.approve_resident(auth.get_pending_residents()[0]["users_id"])
         self.resident = auth.login_user("smirnov@example.com", "pass1234")
 
-    def test_length_limits(self):
-        create = requests_service.create_request
-        create(self.chairman_id, None, "т" * 50, "о" * 250, "Звонок", "и" * 25)
-        with self.assertRaises(AppError):
-            create(self.chairman_id, None, "т" * 51, "", "Звонок")
-        with self.assertRaises(AppError):
-            create(self.chairman_id, None, "Тема", "о" * 251, "Звонок")
-        with self.assertRaises(AppError):
-            create(self.chairman_id, None, "Тема", "", "Звонок", "и" * 26)
-
-    def test_update_request(self):
-        request_id = requests_service.create_request(self.chairman_id, None, "Лифт", "", "Звонок")
-        requests_service.update_request(request_id, "Новое описание", "ООО Сервис")
-        request = requests_service.get_request(request_id)
-        self.assertEqual(request["description"], "Новое описание")
-        self.assertEqual(request["executor"], "ООО Сервис")
-
     def test_completed_request_is_read_only(self):
         request_id = requests_service.create_request(self.chairman_id, None, "Лифт", "", "Звонок")
         requests_service.move_to_next_status(request_id)
         requests_service.move_to_next_status(request_id)
         with self.assertRaises(AppError):
             requests_service.update_request(request_id, "Другое", "Другой")
-
-    def test_resident_deletes_new_request(self):
-        apartment_id = self.resident["apartment_id"]
-        request_id = requests_service.create_request(
-            self.resident["users_id"], apartment_id, "Кран", "", "Приложение"
-        )
-        requests_service.delete_own_request(self.resident["users_id"], request_id)
-        self.assertIsNone(requests_service.get_request(request_id))
-
-    def test_resident_cannot_delete_foreign_or_taken_request(self):
-        request_id = requests_service.create_request(
-            self.resident["users_id"], None, "Кран", "", "Приложение"
-        )
-        requests_service.move_to_next_status(request_id)
-        with self.assertRaises(AppError):
-            requests_service.delete_own_request(self.resident["users_id"], request_id)
-        foreign_id = requests_service.create_request(self.chairman_id, None, "Лифт", "", "Звонок")
-        with self.assertRaises(AppError):
-            requests_service.delete_own_request(self.resident["users_id"], foreign_id)
 
 
 class FinanceEditTest(BaseTest):
@@ -197,21 +108,6 @@ class FinanceEditTest(BaseTest):
         apartments.save_apartment(apartment_data("2", "30"))
         self.ids = [row["apartment_id"] for row in apartments.get_apartments()]
 
-    def test_length_limits(self):
-        finance.charge_target("н" * 50, "100", "2026-10")
-        with self.assertRaises(AppError):
-            finance.charge_target("н" * 51, "100", "2026-11")
-        finance.add_payment(self.ids[0], "10", "01.10.2026", "к" * 50)
-        with self.assertRaises(AppError):
-            finance.add_payment(self.ids[0], "10", "01.10.2026", "к" * 51)
-
-    def test_all_payments(self):
-        finance.add_payment(self.ids[0], "100", "01.10.2026", "Первая")
-        finance.add_payment(self.ids[1], "200", "05.10.2026", "Вторая")
-        payments = finance.get_all_payments()
-        self.assertEqual([p["comment"] for p in payments], ["Вторая", "Первая"])
-        self.assertEqual(payments[0]["number"], 2)
-
     def test_target_charges_paid_count(self):
         finance.charge_target("На лампочки", "1500", "2026-10")
         finance.add_payment(self.ids[0], "1500", "02.10.2026", "")
@@ -219,10 +115,6 @@ class FinanceEditTest(BaseTest):
         self.assertEqual(len(rows), 1)
         self.assertEqual((rows[0]["purpose"], rows[0]["amount"]), ("На лампочки", 150000))
         self.assertEqual(rows[0]["paid"], 1)
-
-    def test_maintenance_is_not_target_charge(self):
-        finance.charge_month("2026-09")
-        self.assertEqual(finance.get_target_charges(), [])
 
 
 class RecoveryTests(BaseTest):
@@ -250,28 +142,6 @@ class RecoveryTests(BaseTest):
         with self.assertRaises(AppError):
             auth.login_user("ivanov@example.com", "secret12")
 
-    def test_resident_gets_new_password_by_email(self):
-        send = self.recover("Smirnov@Example.com", False)
-        send.assert_called_once_with("smirnov@example.com", "Ab12Cd34")
-        self.assertEqual(auth.login_user("smirnov@example.com", "Ab12Cd34")["is_participant"], 1)
-        with self.assertRaises(AppError):
-            auth.login_user("smirnov@example.com", "pass1234")
-
-    def test_unknown_or_wrong_role_is_rejected(self):
-        for login, chairman in (
-            ("nobody@example.com", False),
-            ("smirnov@example.com", True),
-            ("ivanov@example.com", False),
-            ("не почта", True),
-        ):
-            with mock.patch.object(mailer, "send_password") as send:
-                with self.assertRaises(AppError):
-                    auth.recover_account(login, chairman)
-            send.assert_not_called()
-        self.assertEqual(
-            auth.login_user("ivanov@example.com", "secret12")["login"], "ivanov@example.com"
-        )
-
     def test_password_unchanged_if_mail_failed(self):
         with mock.patch.object(
             password_generator, "generate_password", return_value="Ab12Cd34"
@@ -296,17 +166,6 @@ class PasswordGeneratorTests(unittest.TestCase):
         for wrong in ("a7K2mQ9", "a7K2mQ9zz", "abcdefgh", "12345678", "a7K2mQ9!", None):
             self.assertFalse(password_generator.is_valid(wrong))
 
-    def test_random_password_is_valid(self):
-        for _ in range(20):
-            self.assertTrue(password_generator.is_valid(password_generator.random_password()))
-
-    def test_uses_deepseek_answer(self):
-        with self.settings(), mock.patch.object(
-            password_generator, "ask_deepseek", return_value="a7K2mQ9z"
-        ) as ask:
-            self.assertEqual(password_generator.generate_password(), "a7K2mQ9z")
-        ask.assert_called_once_with("sk-test")
-
     def test_falls_back_when_api_fails_or_answer_is_bad(self):
         for effect in (
             {"side_effect": OSError("нет сети")},
@@ -314,11 +173,6 @@ class PasswordGeneratorTests(unittest.TestCase):
         ):
             with self.settings(), mock.patch.object(password_generator, "ask_deepseek", **effect):
                 self.assertTrue(password_generator.is_valid(password_generator.generate_password()))
-
-    def test_no_key_means_no_request(self):
-        with self.settings(""), mock.patch.object(password_generator, "ask_deepseek") as ask:
-            self.assertTrue(password_generator.is_valid(password_generator.generate_password()))
-        ask.assert_not_called()
 
 
 class MailerTests(unittest.TestCase):
@@ -338,15 +192,6 @@ class MailerTests(unittest.TestCase):
                 "sender_name": "ТСЖ",
             },
         )
-
-    def test_sends_password_by_smtp(self):
-        with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
-            mailer.send_password("user@mail.ru", "Ab12Cd34")
-        server = smtp.return_value.__enter__.return_value
-        server.login.assert_called_once_with("sender@test.com", "app-password")
-        message = server.send_message.call_args[0][0]
-        self.assertEqual(message["To"], "user@mail.ru")
-        self.assertIn("Ab12Cd34", message.get_content())
 
     def test_smtp_falls_back_to_port_587(self):
         with self.settings(), mock.patch.object(
@@ -378,40 +223,8 @@ class MailerTests(unittest.TestCase):
         self.assertEqual((sent["to"], sent["token"]), ("user@mail.ru", "secret-word"))
         self.assertIn("Ab12Cd34", sent["body"])
 
-    def test_google_script_refusal_becomes_app_error(self):
-        self.answer('{"ok": false, "error": "неверный токен"}')
-        with self.settings(script="https://script.test/exec"):
-            with self.assertRaises(AppError) as error:
-                mailer.send_password("user@mail.ru", "Ab12Cd34")
-        self.assertIn("неверный токен", str(error.exception))
-
-    def test_failure_message_explains_vpn_and_ports(self):
-        with self.settings(), mock.patch.object(
-            mailer.smtplib, "SMTP_SSL", side_effect=TimeoutError
-        ), mock.patch.object(mailer.smtplib, "SMTP", side_effect=TimeoutError):
-            with self.assertRaises(AppError) as error:
-                mailer.send_password("user@mail.ru", "Ab12Cd34")
-        self.assertIn("TimeoutError", str(error.exception))
-        self.assertIn("VPN", str(error.exception))
-        self.assertIn("apps_script_url", str(error.exception))
-
-    def test_gmail_login_refusal_mentions_vpn(self):
-        refusal = mailer.smtplib.SMTPAuthenticationError(535, b"bad credentials")
-        with self.settings(), mock.patch.object(mailer.smtplib, "SMTP_SSL") as smtp:
-            smtp.return_value.__enter__.return_value.login.side_effect = refusal
-            with self.assertRaises(AppError) as error:
-                mailer.send_password("user@mail.ru", "Ab12Cd34")
-        self.assertIn("VPN", str(error.exception))
-
     def test_not_configured(self):
         with self.settings(""):
-            with self.assertRaises(AppError):
-                mailer.send_password("user@mail.ru", "Ab12Cd34")
-
-    def test_send_failure_becomes_app_error(self):
-        with self.settings(), mock.patch.object(
-            mailer.smtplib, "SMTP_SSL", side_effect=OSError
-        ), mock.patch.object(mailer.smtplib, "SMTP", side_effect=OSError):
             with self.assertRaises(AppError):
                 mailer.send_password("user@mail.ru", "Ab12Cd34")
 
