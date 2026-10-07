@@ -51,8 +51,10 @@ def check_chairman_data(data):
         "password": check.check_password(data["password"], data["password2"]),
         "hoa_name": check.check_hoa_name(data["hoa_name"]),
         "inn": check.check_inn(data["inn"]),
-        "address": check.require_text(data["address"], "Адрес дома"),
-        "rate": check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2"),
+        "address": check.check_length(
+            check.require_text(data["address"], "Адрес дома"), check.MAX_ADDRESS, "Адрес дома"
+        ),
+        "rate": check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2", check.MAX_TARIFF_RUB),
     }
 
 
@@ -110,7 +112,9 @@ def check_resident_data(data):
         "phone": check.check_phone(data["phone"]),
         "login": check.check_login(data["login"]),
         "password": check.check_password(data["password"], data["password2"]),
-        "number": check.parse_positive_int(data["apartment_number"], "Квартира"),
+        "number": check.parse_positive_int(
+            data["apartment_number"], "Квартира", check.MAX_APARTMENT_NUMBER
+        ),
     }
 
 

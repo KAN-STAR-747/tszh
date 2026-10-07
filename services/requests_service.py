@@ -83,6 +83,14 @@ def move_to_next_status(request_id):
     )
 
 
+def return_to_new(request_id):
+    """Отменяет взятие в работу: заявка «В работе» снова становится «Новой»."""
+    request = get_request(request_id)
+    if request is None or request["status"] != "В работе":
+        raise AppError("Отменить можно только заявку со статусом «В работе».")
+    db.execute("UPDATE requests SET status = 'Новая' WHERE requests_id = ?", (request_id,))
+
+
 def update_request(request_id, description, executor):
     """Изменяет описание и исполнителя заявки. Выполненную заявку менять нельзя."""
     request = get_request(request_id)

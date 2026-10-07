@@ -18,6 +18,7 @@ from ui.main_screen import MainScreen
 from ui.resident_screen import ResidentScreen
 
 ADDRESS_POLL_MS = 3000
+DATA_POLL_MS = 4000
 ADDRESS_RETRY_SECONDS = 30
 
 
@@ -45,6 +46,20 @@ class App:
         self.address_tried = float("-inf")
         self.show_start_screen()
         self.watch_address()
+        self.watch_data()
+
+    def watch_data(self):
+        """Раз в несколько секунд просит открытый экран подтянуть новые данные из базы.
+
+        Нужно, когда с той же базой работает ещё одно окно программы (например, жилец
+        оставил заявку, пока у председателя открыт список заявок)."""
+        poll = getattr(self.screen, "poll", None)
+        if poll is not None:
+            try:
+                poll()
+            except Exception:
+                pass
+        self.root.after(DATA_POLL_MS, self.watch_data)
 
     def watch_address(self):
         """Следит за очередью адреса: при появлении интернета подставляет полный адрес."""

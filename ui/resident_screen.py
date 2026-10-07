@@ -37,6 +37,7 @@ class ResidentScreen:
         self.user = user
         self.apartment = apartments.get_apartment(user["apartment_id"])
         self.requests_offset = 0
+        self.signature = None
 
         info = hoa.get_hoa()
         self.address_item = kit.header(board, info["name"], info["address"], 18)
@@ -80,9 +81,13 @@ class ResidentScreen:
             align="left",
         )
         board.label(1035, 245, 400, "Тема", "Regular", 16, align="left")
-        self.title_entry = kit.EntryBox(board, 1031, 274, 460, 42, max_length=50)
+        self.title_entry = kit.EntryBox(
+            board, 1031, 274, 460, 42, max_length=50, placeholder="Например: Протекает кран"
+        )
         board.label(1035, 329, 400, "Описание", "Regular", 16, align="left")
-        self.description = kit.TextBox(board, 1031, 367, 460, 42, max_length=250)
+        self.description = kit.TextBox(
+            board, 1031, 367, 460, 42, max_length=250, placeholder="Что случилось и где"
+        )
         kit.Button(board, 1153, 439, 216, 35, "Отправить заявку", self.send_request)
 
         board.shape(988, 528, 546, 310, 22, kit.PANEL_GRAY)
@@ -94,8 +99,25 @@ class ResidentScreen:
         """Подставляет в шапку полный адрес, когда он оформлен (после очереди)."""
         self.board.itemconfigure(self.address_item, text=hoa.get_hoa()["address"])
 
+    def signature_now(self):
+        """«Отпечаток» данных кабинета: по нему видно, что в базе что-то изменилось."""
+        summary = finance.get_resident_summary(self.apartment["apartment_id"])
+        mine = requests_service.get_requests(apartment_id=self.apartment["apartment_id"])
+        return (
+            summary["debt"],
+            summary["charged"],
+            summary["paid"],
+            [(row["requests_id"], row["status"]) for row in mine],
+        )
+
+    def poll(self):
+        """Если председатель сменил статус заявки или внёс начисление, обновляет кабинет."""
+        if self.signature_now() != self.signature:
+            self.refresh()
+
     def refresh(self):
         """Обновляет долг, историю операций и список «Мои заявки»."""
+        self.signature = self.signature_now()
         board = self.board
         board.clear_layer("data")
         board.set_layer("data")

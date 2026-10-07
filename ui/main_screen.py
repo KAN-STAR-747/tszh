@@ -69,6 +69,12 @@ class MainScreen:
     def open_settings(self):
         self.app.show_chairman_edit(self.user, self.current_index)
 
+    def poll(self):
+        """Подтягивает изменения из базы на открытой вкладке."""
+        poll = getattr(self.tab, "poll", None)
+        if poll is not None:
+            poll()
+
     def show_tab(self, index):
         """Переключает вкладку и заново строит её содержимое."""
         board = self.board
@@ -114,8 +120,9 @@ class ApartmentsTab:
         self.screen = screen
         self.board = board = screen.board
         self.pending_offset = 0
+        self.signature = None
 
-        self.search = kit.EntryBox(board, 26, 229, 264, 36, placeholder="Поиск по номеру или ФИО")
+        self.search = kit.EntryBox(board, 26, 229, 264, 36, placeholder="Поиск по ФИО или телефону")
         self.search.on_change(self.refresh_table)
         self.members = kit.CheckBox(board, 333, 235, command=self.refresh_table)
         board.label(368, 233, 243, "Только члены ТСЖ", "Regular", 24)
@@ -130,8 +137,22 @@ class ApartmentsTab:
         self.refresh_table()
         self.refresh_pending()
 
-    def refresh_table(self):
+    def signature_now(self):
+        """Краткий «отпечаток» данных вкладки: по нему видно, что в базе что-то изменилось."""
+        rows = apartments.get_apartments()
+        pending = [row["users_id"] for row in auth.get_pending_residents()]
+        return [tuple(row) for row in rows], pending
+
+    def poll(self):
+        """Если жильцы зарегистрировались или данные квартир изменились, обновляет вкладку."""
+        signature = self.signature_now()
+        if signature != self.signature:
+            self.refresh_table(keep_offset=True)
+            self.refresh_pending()
+
+    def refresh_table(self, keep_offset=False):
         """Заполняет таблицу с учётом поиска и фильтра «Только члены ТСЖ»."""
+        self.signature = self.signature_now()
         rows = apartments.get_apartments(self.search.get(), self.members.get())
         table = []
         for row in rows:
@@ -145,7 +166,7 @@ class ApartmentsTab:
             ]
             tint = kit.DEBT_TINT if row["debt"] > 0 else None
             table.append((row["apartment_id"], values, tint))
-        self.table.set_rows(table)
+        self.table.set_rows(table, keep_offset)
         total, members = apartments.get_summary()
         self.board.itemconfigure(
             self.footer, text=f"Всего квартир: {total} * Членов ТСЖ: {members}"
@@ -273,6 +294,7 @@ class RequestsTab:
         self.board = board = screen.board
         self.user = screen.user
         self.request_id = None
+        self.signature = None
 
         board.label(44, 230, 112, "Статус:", "Regular", 24)
         self.status_box = kit.DropBox(
@@ -291,10 +313,19 @@ class RequestsTab:
         self.refresh_table()
         self.show_details(None)
 
-    def refresh_table(self):
+    def poll(self):
+        """Если появились новые заявки или сменились статусы, обновляет таблицу."""
+        status = self.status_box.get()
+        rows = requests_service.get_requests(None if status == "Все" else status)
+        signature = [(row["requests_id"], row["status"], row["title"]) for row in rows]
+        if signature != self.signature:
+            self.refresh_table(keep_offset=True)
+
+    def refresh_table(self, keep_offset=False):
         """Заполняет таблицу с учётом выбранного статуса."""
         status = self.status_box.get()
         rows = requests_service.get_requests(None if status == "Все" else status)
+        self.signature = [(row["requests_id"], row["status"], row["title"]) for row in rows]
         table = []
         for row in rows:
             values = [
@@ -307,7 +338,7 @@ class RequestsTab:
             ]
             tint = kit.NEW_TINT if row["status"] == "Новая" else None
             table.append((row["requests_id"], values, tint))
-        self.table.set_rows(table)
+        self.table.set_rows(table, keep_offset)
         if self.request_id in [row[0] for row in table]:
             self.table.select(self.request_id)
 
@@ -353,7 +384,14 @@ class RequestsTab:
 
         board.label(1124, 609, 191, "Исполнитель", "Bold", 20, align="left")
         self.executor = kit.EntryBox(
-            board, 1124, 652, 405, 44, text=request["executor"] or "", max_length=25
+            board,
+            1124,
+            652,
+            405,
+            44,
+            text=request["executor"] or "",
+            max_length=25,
+            placeholder="Например: Петров П.П.",
         )
         board.label(1124, 704, 191, "Статус", "Bold", 20, align="left")
         self.draw_status_line(request["status"])
@@ -366,7 +404,8 @@ class RequestsTab:
         else:
             next_status = requests_service.get_next_status(request["status"])
             if next_status == "Выполнена":
-                kit.Button(board, 1229, 790, 216, 35, "Отметить выполненной", self.change_status)
+                kit.Button(board, 1313, 790, 216, 35, "Отметить выполненной", self.change_status)
+                kit.Button(board, 1124, 790, 170, 35, "Отменить работу", self.cancel_work, "plain")
             else:
                 kit.Button(board, 1229, 790, 216, 35, "Взять в работу", self.change_status)
             kit.Button(board, 1229, 834, 216, 35, "Сохранить изменения", self.save_changes, "plain")
@@ -398,6 +437,19 @@ class RequestsTab:
         """Переводит заявку в следующий статус."""
         try:
             requests_service.move_to_next_status(self.request_id)
+        except AppError as error:
+            dialogs.show_error(self.board, str(error))
+        request_id = self.request_id
+        self.refresh_table()
+        self.show_details(request_id)
+
+    def cancel_work(self):
+        """Возвращает заявку из «В работе» в «Новая» (после подтверждения)."""
+        question = "Отменить работу над заявкой?\nОна снова станет «Новой»."
+        if not dialogs.ask_yes_no(self.board, question):
+            return
+        try:
+            requests_service.return_to_new(self.request_id)
         except AppError as error:
             dialogs.show_error(self.board, str(error))
         request_id = self.request_id
@@ -473,11 +525,15 @@ class FinanceTab:
             index=0,
         )
         board.label(1151, 446, 355, "Сумма, руб.", "Regular", 16, align="left")
-        self.payment_amount = kit.EntryBox(board, 1147, 475, 355, 42)
+        self.payment_amount = kit.EntryBox(
+            board, 1147, 475, 355, 42, max_length=10, placeholder="Например: 1500"
+        )
         board.label(1151, 524, 355, "Дата оплаты", "Regular", 16, align="left")
         self.payment_date = kit.EntryBox(board, 1147, 553, 355, 42, text=dates.today_text())
         board.label(1151, 602, 355, "Комментарий", "Regular", 16, align="left")
-        self.payment_comment = kit.EntryBox(board, 1147, 631, 355, 42, max_length=50)
+        self.payment_comment = kit.EntryBox(
+            board, 1147, 631, 355, 42, max_length=50, placeholder="Например: Оплата за октябрь"
+        )
         kit.Button(board, 1217, 715, 216, 35, "Сохранить оплату", self.save_payment)
 
     def refresh_table(self):

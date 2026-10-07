@@ -1,5 +1,6 @@
 """Квартиры: реестр квартир, собственников и членов ТСЖ."""
 
+import re
 import sqlite3
 
 from db import database as db
@@ -21,12 +22,22 @@ def get_apartments(search="", only_members=False):
 
     search = search.strip().lower()
     if search:
-        rows = [
-            row
-            for row in rows
-            if search == str(row["number"]) or search in row["owner_name"].lower()
-        ]
+        rows = [row for row in rows if matches_search(row, search)]
     return rows
+
+
+def matches_search(row, search):
+    """Поиск по ФИО собственника или по телефону (номер квартиры в поиске не участвует).
+
+    Запрос из цифр, плюса, пробелов, скобок и дефисов считается телефоном: «8» в начале
+    равносильна «+7», поэтому по «8913...» находится и «+7913...».
+    """
+    if re.fullmatch(r"[\d+\-() ]+", search):
+        digits = re.sub(r"\D", "", search)
+        if digits.startswith("8"):
+            digits = "7" + digits[1:]
+        return digits != "" and digits in check.normalize_phone(row["owner_phone"])
+    return search in row["owner_name"].lower()
 
 
 def get_apartment(apartment_id):
@@ -49,8 +60,8 @@ def get_summary():
 
 def save_apartment(data, apartment_id=None):
     """Добавляет квартиру (apartment_id=None) или изменяет существующую."""
-    number = check.parse_positive_int(data["number"], "Номер квартиры")
-    area = check.parse_positive_number(data["area"], "Площадь")
+    number = check.parse_positive_int(data["number"], "Номер квартиры", check.MAX_APARTMENT_NUMBER)
+    area = check.parse_positive_number(data["area"], "Площадь", check.MAX_AREA)
     owner_name = check.check_full_name(data["owner_name"])
     owner_phone = check.check_phone(data["owner_phone"])
     is_member = 1 if data["is_member"] else 0

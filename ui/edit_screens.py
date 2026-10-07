@@ -39,18 +39,30 @@ class ChairmanEditScreen:
 
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, "ФИО", 111, 248, 355, text=user["full_name"]),
+            "full_name": add(board, "ФИО", 111, 248, 355, text=user["full_name"], max_length=100),
             "phone": add(board, "Телефон", 494, 248, 355, text=user["phone"], max_length=20),
-            "hoa_name": add(board, "Наименование ТСЖ", 111, 593, 738, text=info["name"]),
-            "inn": add(board, "ИНН", 111, 677, 355, text=info["inn"]),
-            "rate": add(
-                board, "Тариф за 1 м2, руб.", 494, 677, 355, text=dialogs.comma(info["rate_per_m2"])
+            "hoa_name": add(
+                board, "Наименование ТСЖ", 111, 593, 738, text=info["name"], max_length=60
             ),
-            "address": add(board, "Адрес дома", 111, 761, 738, text=info["address"]),
+            "inn": add(board, "ИНН", 111, 677, 355, text=info["inn"], max_length=10),
+            "rate": add(
+                board,
+                "Тариф за 1 м2, руб.",
+                494,
+                677,
+                355,
+                text=dialogs.comma(info["rate_per_m2"]),
+                max_length=6,
+            ),
+            "address": add(
+                board, "Адрес дома", 111, 761, 738, text=info["address"], max_length=200
+            ),
         }
         login = add(board, "Электронная почта (не изменяется)", 111, 358, 738, text=user["login"])
         login.set_readonly(True)
-        self.password = add(board, "Пароль", 111, 442, 738, text=app.session_password)
+        self.password = add(
+            board, "Пароль", 111, 442, 738, text=app.session_password, max_length=64
+        )
 
         kit.Button(board, 605, 850, 119, 35, "Отмена", self.cancel, "plain")
         kit.Button(board, 742, 850, 142, 35, "Сохранить", self.save)
@@ -97,12 +109,12 @@ class ResidentEditScreen:
 
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, "ФИО", 83, 270, 355, text=user["full_name"]),
+            "full_name": add(board, "ФИО", 83, 270, 355, text=user["full_name"], max_length=100),
             "phone": add(board, "Телефон", 83, 354, 355, text=user["phone"], max_length=20),
         }
         login = add(board, "Электронная почта (не изменяется)", 83, 438, 355, text=user["login"])
         login.set_readonly(True)
-        self.password = add(board, "Пароль", 83, 522, 355, text=app.session_password)
+        self.password = add(board, "Пароль", 83, 522, 355, text=app.session_password, max_length=64)
 
         kit.Button(board, 127, 612, 119, 35, "Отмена", self.cancel, "plain")
         kit.Button(board, 260, 612, 133, 35, "Сохранить", self.save)

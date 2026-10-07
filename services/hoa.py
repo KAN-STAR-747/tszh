@@ -59,10 +59,14 @@ def update_hoa(data):
     """Изменяет данные ТСЖ. data - словарь: hoa_name, inn, address, rate (рубли)."""
     name = check.check_hoa_name(data["hoa_name"])
     inn = check.check_inn(data["inn"])
-    rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
+    rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2", check.MAX_TARIFF_RUB)
     if get_hoa() is None:
         raise AppError("Данные ТСЖ не заполнены.")
-    address, _ = prepare_address(data["address"])
+    address, _ = prepare_address(
+        check.check_length(
+            check.require_text(data["address"], "Адрес дома"), check.MAX_ADDRESS, "Адрес дома"
+        )
+    )
     db.execute(
         "UPDATE hoa SET name = ?, inn = ?, address = ?, rate_per_m2 = ?", (name, inn, address, rate)
     )

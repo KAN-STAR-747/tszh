@@ -13,6 +13,18 @@ class RequestsTest(BaseTest):
         auth.register_chairman(chairman_data())
         self.user_id = auth.login_user("ivanov@example.com", "secret12")["users_id"]
 
+    def test_work_can_be_cancelled(self):
+        request_id = requests_service.create_request(self.user_id, None, "Лифт", "", "Звонок")
+        with self.assertRaises(AppError):
+            requests_service.return_to_new(request_id)
+        requests_service.move_to_next_status(request_id)
+        requests_service.return_to_new(request_id)
+        self.assertEqual(requests_service.get_request(request_id)["status"], "Новая")
+        requests_service.move_to_next_status(request_id)
+        requests_service.move_to_next_status(request_id)
+        with self.assertRaises(AppError):
+            requests_service.return_to_new(request_id)
+
     def test_status_flow_and_closed_date(self):
         request_id = requests_service.create_request(
             self.user_id, None, "Не работает лифт", "", "Звонок"

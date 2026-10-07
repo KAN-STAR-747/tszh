@@ -60,9 +60,9 @@ class LoginScreen:
 
         board.shape(38, 232, 445, 276, 22, kit.PANEL_BLUE)
         board.label(87, 258, 355, "Электронная почта", "Regular", 16, align="left")
-        self.login = kit.EntryBox(board, 83, 287, 355, 42)
+        self.login = kit.EntryBox(board, 83, 287, 355, 42, placeholder="name@mail.ru")
         board.label(87, 342, 355, "Пароль", "Regular", 16, align="left")
-        self.password = kit.EntryBox(board, 83, 371, 355, 42, show="*")
+        self.password = kit.EntryBox(board, 83, 371, 355, 42, show="*", placeholder="Ваш пароль")
         self.login.on_enter(self.try_login)
         self.password.on_enter(self.try_login)
 
@@ -133,7 +133,9 @@ class VerificationScreen:
             f"Мы отправили код из 4 цифр на {login}. Введите его, чтобы завершить регистрацию.",
         )
         board.shape(38, 240, 445, 187, 22, kit.PANEL_BLUE)
-        self.code = dialogs.add_field(board, "Код из письма", 83, 299, 355, max_length=4)
+        self.code = dialogs.add_field(
+            board, "Код из письма", 83, 299, 355, max_length=4, placeholder="Например: 1234"
+        )
         self.code.on_enter(self.confirm)
         kit.Button(board, 106, 455, 119, 35, "Назад", self.back, "plain")
         kit.Button(board, 239, 455, 175, 35, "Подтвердить", self.confirm)
@@ -254,7 +256,9 @@ class RecoveryScreen:
             "которую вы указали при регистрации.",
         )
         board.shape(38, 232, 445, 195, 22, kit.PANEL_BLUE)
-        self.email = dialogs.add_field(board, "Электронная почта", 83, 291, 355)
+        self.email = dialogs.add_field(
+            board, "Электронная почта", 83, 291, 355, max_length=100, placeholder="name@mail.ru"
+        )
         self.email.on_enter(self.send)
         kit.Button(board, 106, 455, 119, 35, "Отмена", app.show_login, "plain")
         kit.Button(board, 239, 455, 175, 35, "Отправить пароль", self.send)
@@ -293,12 +297,42 @@ class ResidentRegisterScreen:
 
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, "ФИО", 83, 268, 355),
-            "phone": add(board, "Телефон", 83, 350, 355),
-            "apartment_number": add(board, "Квартира", 83, 432, 355),
-            "login": add(board, "Электронная почта", 83, 514, 355),
-            "password": add(board, "Пароль", 83, 596, 355, show="*"),
-            "password2": add(board, "Повтор пароля", 83, 678, 355, show="*"),
+            "full_name": add(
+                board, "ФИО", 83, 268, 355, max_length=100, placeholder="Иванов Иван Иванович"
+            ),
+            "phone": add(board, "Телефон", 83, 350, 355, max_length=20, placeholder="+79131234567"),
+            "apartment_number": add(
+                board,
+                "Квартира",
+                83,
+                432,
+                355,
+                max_length=4,
+                placeholder="Номер квартиры, например 12",
+            ),
+            "login": add(
+                board, "Электронная почта", 83, 514, 355, max_length=100, placeholder="name@mail.ru"
+            ),
+            "password": add(
+                board,
+                "Пароль",
+                83,
+                596,
+                355,
+                show="*",
+                max_length=64,
+                placeholder="Не короче 8 символов",
+            ),
+            "password2": add(
+                board,
+                "Повтор пароля",
+                83,
+                678,
+                355,
+                show="*",
+                max_length=64,
+                placeholder="Повторите пароль",
+            ),
         }
         kit.note(
             board,
@@ -353,15 +387,77 @@ class ChairmanRegisterScreen:
 
         add = dialogs.add_field
         self.fields = {
-            "full_name": add(board, "ФИО", 111, 248, 355),
-            "phone": add(board, "Телефон", 494, 248, 355),
-            "login": add(board, "Электронная почта", 111, 332, 738),
-            "password": add(board, "Пароль", 111, 416, 355, show="*"),
-            "password2": add(board, "Повторите пароль", 494, 416, 355, show="*"),
-            "hoa_name": add(board, "Наименование ТСЖ", 111, 575, 738),
-            "inn": add(board, "ИНН", 111, 659, 355),
-            "rate": add(board, "Тариф за 1 м2, руб.", 494, 659, 355),
-            "address": add(board, "Адрес дома", 111, 743, 738),
+            "full_name": add(
+                board, "ФИО", 111, 248, 355, max_length=100, placeholder="Иванов Иван Иванович"
+            ),
+            "phone": add(
+                board, "Телефон", 494, 248, 355, max_length=20, placeholder="+79131234567"
+            ),
+            "login": add(
+                board,
+                "Электронная почта",
+                111,
+                332,
+                738,
+                max_length=100,
+                placeholder="name@mail.ru",
+            ),
+            "password": add(
+                board,
+                "Пароль",
+                111,
+                416,
+                355,
+                show="*",
+                max_length=64,
+                placeholder="Не короче 8 символов",
+            ),
+            "password2": add(
+                board,
+                "Повторите пароль",
+                494,
+                416,
+                355,
+                show="*",
+                max_length=64,
+                placeholder="Повторите пароль",
+            ),
+            "hoa_name": add(
+                board,
+                "Наименование ТСЖ",
+                111,
+                575,
+                738,
+                max_length=60,
+                placeholder="Например: Березка",
+            ),
+            "inn": add(
+                board,
+                "ИНН",
+                111,
+                659,
+                355,
+                max_length=10,
+                placeholder="10 цифр, например 5405123456",
+            ),
+            "rate": add(
+                board,
+                "Тариф за 1 м2, руб.",
+                494,
+                659,
+                355,
+                max_length=6,
+                placeholder="Например: 32,50",
+            ),
+            "address": add(
+                board,
+                "Адрес дома",
+                111,
+                743,
+                738,
+                max_length=200,
+                placeholder="Например: Одоевского 1 (улицу и номер дома)",
+            ),
         }
         kit.Button(board, 539, 850, 119, 35, "Отмена", app.root.destroy, "plain")
         kit.Button(board, 668, 850, 216, 35, "Зарегистрироваться", self.register)

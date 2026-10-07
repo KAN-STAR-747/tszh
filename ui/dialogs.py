@@ -109,13 +109,15 @@ def comma(kopecks):
     return check.kopecks_to_text(kopecks).replace(".", ",")
 
 
-def add_field(board, caption, x, y, w, show="", text="", max_length=None):
+def add_field(board, caption, x, y, w, show="", text="", max_length=None, placeholder=""):
     """Подпись (шрифт 16) над полем по его левому краю и само поле ввода.
 
-    max_length - наибольшая длина текста.
+    max_length - наибольшая длина текста, placeholder - серый пример ввода в пустом поле.
     """
     board.label(x + 4, y - 29, w, caption, "Regular", 16, align="left")
-    return kit.EntryBox(board, x, y, w, 42, show=show, text=text, max_length=max_length)
+    return kit.EntryBox(
+        board, x, y, w, 42, show=show, text=text, max_length=max_length, placeholder=placeholder
+    )
 
 
 class ApartmentDialog(Modal):
@@ -135,10 +137,30 @@ class ApartmentDialog(Modal):
         board = self.board
 
         board.label(0, 42, 521, title, "Bold", 32)
-        self.number = add_field(board, "Номер квартиры", 59, 142, 403)
-        self.area = add_field(board, "Площадь, м2", 59, 226, 403)
-        self.owner = add_field(board, "ФИО собственника", 59, 310, 403)
-        self.phone = add_field(board, "Телефон собственника", 59, 394, 403)
+        self.number = add_field(
+            board, "Номер квартиры", 59, 142, 403, max_length=4, placeholder="Например: 12"
+        )
+        self.area = add_field(
+            board, "Площадь, м2", 59, 226, 403, max_length=8, placeholder="Например: 45,5"
+        )
+        self.owner = add_field(
+            board,
+            "ФИО собственника",
+            59,
+            310,
+            403,
+            max_length=100,
+            placeholder="Например: Иванов Иван Иванович",
+        )
+        self.phone = add_field(
+            board,
+            "Телефон собственника",
+            59,
+            394,
+            403,
+            max_length=20,
+            placeholder="Например: +79131234567",
+        )
         self.member = kit.CheckBox(board, 63, 448)
         board.label(99, 449, 300, "Собственник - член ТСЖ", "Regular", 16, align="left")
         kit.note(
@@ -212,11 +234,21 @@ class RequestDialog(Modal):
             board, [("Звонок", "Звонок", 81, 246), ("Приложение", "Приложение", 212, 246)]
         )
 
-        self.title_entry = add_field(board, "Тема", 59, 310, 403, max_length=50)
+        self.title_entry = add_field(
+            board, "Тема", 59, 310, 403, max_length=50, placeholder="Например: Протекает кран"
+        )
         board.label(63, 365, 300, "Описание", "Regular", 16, align="left")
-        self.description = kit.TextBox(board, 59, 394, 403, 42, max_length=250)
+        self.description = kit.TextBox(
+            board, 59, 394, 403, 42, max_length=250, placeholder="Что случилось и где"
+        )
         self.executor = add_field(
-            board, "Исполнитель (можно указать позже)", 59, 476, 403, max_length=25
+            board,
+            "Исполнитель (можно указать позже)",
+            59,
+            476,
+            403,
+            max_length=25,
+            placeholder="Например: Петров П.П.",
         )
         board.label(0, 548, 521, "Заявка будет создана со статусом «Новая»", "ExtraLight", 20)
         kit.Button(board, 177, 659, 119, 35, "Отмена", self.destroy, "plain")
@@ -258,8 +290,24 @@ class TargetChargeDialog(Modal):
         board = self.board
 
         board.label(0, 42, 521, "Новый целевой сбор", "Bold", 32)
-        self.purpose = add_field(board, "Назначение", 59, 142, 403, max_length=50)
-        self.amount = add_field(board, "Сумма с квартиры, руб.", 59, 226, 403)
+        self.purpose = add_field(
+            board,
+            "Назначение",
+            59,
+            142,
+            403,
+            max_length=50,
+            placeholder="Например: Ремонт подъезда",
+        )
+        self.amount = add_field(
+            board,
+            "Сумма с квартиры, руб.",
+            59,
+            226,
+            403,
+            max_length=10,
+            placeholder="Например: 500 (не больше 1 000 000)",
+        )
         self.amount.on_change(self.update_preview)
         board.label(63, 281, 300, "Месяц", "Regular", 16, align="left")
         self.months = dates.get_month_list()

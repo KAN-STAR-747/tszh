@@ -27,6 +27,16 @@ class FinanceTest(BaseTest):
             finance.charge_month("2026-09")
         self.assertEqual(len(database.query_all("SELECT * FROM charges")), 2)
 
+    def test_amount_limit(self):
+        apartment_id = apartments.get_apartments()[0]["apartment_id"]
+        with self.assertRaises(AppError):
+            finance.add_payment(apartment_id, "1000001", "01.09.2026", "")
+        with self.assertRaises(AppError):
+            finance.charge_target("Ремонт", "2000000", "2026-09")
+        with self.assertRaises(AppError):
+            finance.add_payment(apartment_id, "100", "01.01.1990", "")
+        finance.add_payment(apartment_id, "1000000", "01.09.2026", "")
+
     def test_payment_reduces_debt(self):
         finance.charge_month("2026-09")
         apartment_id = apartments.get_apartments()[0]["apartment_id"]

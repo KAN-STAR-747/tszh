@@ -1,5 +1,6 @@
 """Проверка данных, которые вводит пользователь."""
 
+import math
 import re
 from datetime import datetime
 
@@ -12,6 +13,15 @@ MAX_DESCRIPTION = 250
 MAX_EXECUTOR = 25
 MAX_PURPOSE = 50
 MAX_COMMENT = 50
+
+MAX_FULL_NAME = 100
+MAX_ADDRESS = 200
+MAX_PASSWORD = 64
+MAX_APARTMENT_NUMBER = 9999
+MAX_AREA = 1000
+MAX_AMOUNT_RUB = 1_000_000
+MAX_TARIFF_RUB = 500
+MIN_YEAR, MAX_YEAR = 2000, 2100
 
 
 def require_text(value, field_name):
@@ -34,6 +44,8 @@ def check_full_name(value):
     words = value.split()
     if not 2 <= len(words) <= 3 or not all(NAME_WORD.fullmatch(word) for word in words):
         raise AppError(FULL_NAME_HINT)
+    if len(" ".join(words)) > MAX_FULL_NAME:
+        raise AppError(f"ФИО не должно быть длиннее {MAX_FULL_NAME} символов.")
     return " ".join("-".join(part.capitalize() for part in word.split("-")) for word in words)
 
 
@@ -118,34 +130,45 @@ def check_password(password, repeat):
     """Проверяет длину пароля и совпадение с повтором."""
     if len(password) < MIN_PASSWORD_LENGTH:
         raise AppError(f"Пароль должен быть не короче {MIN_PASSWORD_LENGTH} символов.")
+    if len(password) > MAX_PASSWORD:
+        raise AppError(f"Пароль не должен быть длиннее {MAX_PASSWORD} символов.")
     if password != repeat:
         raise AppError("Пароли не совпадают.")
     return password
 
 
-def parse_positive_int(text, field_name):
-    """Переводит текст в целое положительное число."""
+def parse_positive_int(text, field_name, maximum=None):
+    """Переводит текст в целое положительное число (не больше maximum, если он задан)."""
     text = text.strip()
     if not text.isdigit() or int(text) <= 0:
         raise AppError(f"Поле «{field_name}» должно быть целым положительным числом.")
+    if maximum is not None and int(text) > maximum:
+        raise AppError(f"Поле «{field_name}» не должно быть больше {maximum}.")
     return int(text)
 
 
-def parse_positive_number(text, field_name):
-    """Переводит текст в положительное число (допускается запятая)."""
+def parse_positive_number(text, field_name, maximum=None):
+    """Переводит текст в положительное число (допускается запятая, не больше maximum)."""
     text = text.strip().replace(",", ".")
     try:
         number = float(text)
     except ValueError:
         raise AppError(f"Поле «{field_name}» должно быть числом.") from None
-    if number <= 0:
+    if not math.isfinite(number) or number <= 0:
         raise AppError(f"Поле «{field_name}» должно быть больше нуля.")
+    if maximum is not None and number > maximum:
+        raise AppError(f"Поле «{field_name}» не должно быть больше {maximum:g}.")
     return number
 
 
-def rubles_to_kopecks(text, field_name):
-    """Переводит рубли из текста в копейки (целое число)."""
-    return round(parse_positive_number(text, field_name) * 100)
+def rubles_to_kopecks(text, field_name, maximum=MAX_AMOUNT_RUB):
+    """Переводит рубли из текста в копейки (целое число). Сумма ограничена maximum рублей."""
+    number = parse_positive_number(text, field_name)
+    if number > maximum:
+        raise AppError(
+            f"Поле «{field_name}»: сумма не может быть больше {maximum:,} руб.".replace(",", " ")
+        )
+    return round(number * 100)
 
 
 def kopecks_to_text(kopecks):
@@ -161,4 +184,6 @@ def parse_date(text, field_name):
         date = datetime.strptime(text.strip(), "%d.%m.%Y")
     except ValueError:
         raise AppError(f"Поле «{field_name}»: дата должна быть в формате ДД.ММ.ГГГГ.") from None
+    if not MIN_YEAR <= date.year <= MAX_YEAR:
+        raise AppError(f"Поле «{field_name}»: год должен быть от {MIN_YEAR} до {MAX_YEAR}.")
     return date.strftime("%Y-%m-%d")

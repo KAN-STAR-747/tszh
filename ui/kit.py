@@ -178,6 +178,26 @@ def line_image(size, points, color, width):
     return _cache[key]
 
 
+_wheel_listeners = []
+
+
+def widget_under(event):
+    """Элемент интерфейса под курсором (None, если там нет окна программы)."""
+    try:
+        return event.widget.winfo_containing(event.x_root, event.y_root)
+    except (KeyError, tk.TclError):
+        return None
+
+
+def _dispatch_wheel(event):
+    """Колесо мыши в Tk на Windows приходит только в окно с фокусом, а холсты фокуса не берут.
+    Поэтому событие ловится на уровне всей программы и отдаётся тому, что под курсором."""
+    for listener in reversed(_wheel_listeners):
+        if listener(event):
+            return "break"
+    return None
+
+
 class Board(tk.Canvas):
     """Холст, на котором рисуется одно окно макета (координаты - как в Figma).
 
@@ -190,7 +210,23 @@ class Board(tk.Canvas):
         self.layer_widgets = {}
         self.wheel_areas = []
         self.counter = 0
-        self.bind("<MouseWheel>", self._on_wheel)
+        self.drag = None
+        self.bind_all("<MouseWheel>", _dispatch_wheel)
+        _wheel_listeners.append(self._on_wheel)
+        self.bind("<Destroy>", self._forget_wheel, "+")
+        self.bind("<B1-Motion>", self._on_drag, "+")
+        self.bind("<ButtonRelease-1>", self._stop_drag, "+")
+
+    def _forget_wheel(self, event):
+        if event.widget is self and self._on_wheel in _wheel_listeners:
+            _wheel_listeners.remove(self._on_wheel)
+
+    def _on_drag(self, event):
+        if self.drag is not None:
+            self.drag(event)
+
+    def _stop_drag(self, event):
+        self.drag = None
 
     def set_layer(self, name):
         """Все элементы, созданные дальше, попадут в слой name."""
@@ -274,10 +310,19 @@ class Board(tk.Canvas):
         self.wheel_areas.append((self.layer, S(x), S(y), S(x + w), S(y + h), callback))
 
     def _on_wheel(self, event):
+        """Колесо над областью холста. True, если событие обработано здесь."""
+        if not self.winfo_exists() or isinstance(widget_under(event), tk.Text):
+            return False
+        if widget_under(event) is None or widget_under(event).winfo_toplevel() is not (
+            self.winfo_toplevel()
+        ):
+            return False
+        x, y = event.x_root - self.winfo_rootx(), event.y_root - self.winfo_rooty()
         for _, x0, y0, x1, y1, callback in self.wheel_areas:
-            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+            if x0 <= x <= x1 and y0 <= y <= y1:
                 callback(-1 if event.delta > 0 else 1)
-                return
+                return True
+        return False
 
     def hover_cursor(self, tag):
         """Над элементами с этим тегом курсор становится «рукой»."""
@@ -472,8 +517,9 @@ class EntryBox:
 class TextBox:
     """Многострочное поле (описание заявки) в такой же рамке."""
 
-    def __init__(self, board, x, y, w, h, size=12, max_length=None):
+    def __init__(self, board, x, y, w, h, size=12, max_length=None, placeholder=""):
         self.max_length = max_length
+        self.placeholder, self.showing_placeholder = placeholder, False
         self.normal, self.focused, pad = _chip_images(w, h)
         bg_id = board.create_image(
             S(x) - pad, S(y) - pad, anchor="nw", image=self.normal, tags=(board.layer,)
@@ -497,23 +543,45 @@ class TextBox:
             tags=(board.layer,),
         )
         board.add_widget(self.text)
-        self.text.bind("<FocusIn>", lambda e: board.itemconfigure(bg_id, image=self.focused))
-        self.text.bind("<FocusOut>", lambda e: board.itemconfigure(bg_id, image=self.normal))
+        self.text.bind("<FocusIn>", lambda e: self._focus_in(board, bg_id))
+        self.text.bind("<FocusOut>", lambda e: self._focus_out(board, bg_id))
         if max_length:
             self.text.bind("<KeyRelease>", self._cut)
             self.text.bind("<<Paste>>", lambda e: self.text.after(1, self._cut))
+        self._show_placeholder()
+
+    def _show_placeholder(self):
+        if self.placeholder and not self.text.get("1.0", "end-1c"):
+            self.showing_placeholder = True
+            self.text.configure(fg=PLACEHOLDER)
+            self.text.insert("1.0", self.placeholder)
+
+    def _focus_in(self, board, bg_id):
+        board.itemconfigure(bg_id, image=self.focused)
+        if self.showing_placeholder:
+            self.showing_placeholder = False
+            self.text.delete("1.0", "end")
+            self.text.configure(fg=BLACK)
+
+    def _focus_out(self, board, bg_id):
+        board.itemconfigure(bg_id, image=self.normal)
+        self._show_placeholder()
 
     def _cut(self, event=None):
         if len(self.text.get("1.0", "end-1c")) > self.max_length:
             self.text.delete(f"1.0+{self.max_length}c", "end")
 
     def get(self):
-        """Введённый текст."""
-        return self.text.get("1.0", "end").strip()
+        """Введённый текст (без подсказки)."""
+        return "" if self.showing_placeholder else self.text.get("1.0", "end").strip()
 
     def clear(self):
         """Очищает поле."""
         self.text.delete("1.0", "end")
+        self.showing_placeholder = False
+        self.text.configure(fg=BLACK)
+        if self.text.focus_get() is not self.text:
+            self._show_placeholder()
 
 
 class DropMenu(tk.Toplevel):
@@ -541,6 +609,7 @@ class DropMenu(tk.Toplevel):
         self.hover = max(drop.index, 0)
         self.top = 0
         self.closed = False
+        self.dragging = False
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -576,8 +645,10 @@ class DropMenu(tk.Toplevel):
         self.canvas.bind(
             "<Leave>", lambda e: self.canvas.itemconfigure(self.light_item, state="hidden")
         )
+        self.canvas.bind("<ButtonPress-1>", self.on_press)
+        self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_click)
-        self.canvas.bind("<MouseWheel>", self.on_wheel)
+        _wheel_listeners.append(self.on_wheel_event)
         self.canvas.bind("<Up>", lambda e: self.step(-1))
         self.canvas.bind("<Down>", lambda e: self.step(1))
         self.canvas.bind("<Return>", lambda e: self.pick(self.hover))
@@ -605,6 +676,8 @@ class DropMenu(tk.Toplevel):
         if self.closed:
             return
         self.closed = True
+        if self.on_wheel_event in _wheel_listeners:
+            _wheel_listeners.remove(self.on_wheel_event)
         self.drop.menu = None
         self.drop.closed_at = time.monotonic()
         try:
@@ -637,7 +710,7 @@ class DropMenu(tk.Toplevel):
             bar = max(track * self.MAX_ROWS / total, S(24))
             start = self.pad + (track - bar) * self.top / (total - self.MAX_ROWS)
             self.canvas.coords(
-                self.scroll_item, self.width - S(8), start, self.width - S(4), start + bar
+                self.scroll_item, self.width - S(11), start, self.width - S(4), start + bar
             )
         self.place_light()
 
@@ -680,16 +753,39 @@ class DropMenu(tk.Toplevel):
         elif number is None:
             self.canvas.itemconfigure(self.light_item, state="hidden")
 
+    def on_press(self, event):
+        """Нажатие на полосу прокрутки справа начинает перетаскивание ползунка."""
+        if len(self.values) > self.MAX_ROWS and event.x >= self.width - S(22):
+            self.dragging = True
+            self.on_drag(event)
+
+    def on_drag(self, event):
+        """Ползунок следует за курсором."""
+        if not self.dragging:
+            return
+        track = self.height - 2 * self.pad
+        bar = max(track * self.MAX_ROWS / len(self.values), S(24))
+        ratio = min(max((event.y - self.pad - bar / 2) / max(1, track - bar), 0), 1)
+        self.top = round(ratio * (len(self.values) - self.MAX_ROWS))
+        self.draw()
+
     def on_click(self, event):
+        if self.dragging:
+            self.dragging = False
+            return
         number = self.row_at(event.y)
         if number is not None:
             self.pick(number)
 
-    def on_wheel(self, event):
+    def on_wheel_event(self, event):
+        """Колесо над меню прокручивает список (событие приходит от всей программы)."""
+        if self.closed or widget_under(event) not in (self, self.canvas):
+            return False
         self.top = max(
             0, min(self.top - (1 if event.delta > 0 else -1), len(self.values) - len(self.texts))
         )
         self.draw()
+        return True
 
     def step(self, delta):
         """Стрелки вверх и вниз."""
@@ -1088,13 +1184,16 @@ class Table:
             board.tag_bind(tag, "<ButtonRelease-1>", lambda e, n=number: self.sort_by(n))
         board.add_wheel_area(x, y, w, h, self.scroll)
         board.tag_bind(self.tag + "row", "<ButtonRelease-1>", self._click)
+        board.tag_bind(self.tag + "bar", "<ButtonPress-1>", self._press_bar)
 
-    def set_rows(self, rows):
-        """rows: список (ключ, значения столбцов, цвет подложки или None)."""
+    def set_rows(self, rows, keep_offset=False):
+        """rows: список (ключ, значения столбцов, цвет подложки или None).
+
+        keep_offset - не возвращать таблицу к началу (при фоновом обновлении данных)."""
         self.rows = list(rows)
         if self.selected_key not in [row[0] for row in self.rows]:
             self.selected_key = None
-        self.offset = 0
+        self.offset = min(self.offset, max(0, len(self.rows) - self.visible)) if keep_offset else 0
         self._apply_sort()
         self.redraw()
 
@@ -1168,24 +1267,51 @@ class Table:
         board.hline(self.x + 1, top, self.w - 2, tags=(self.tag,))
         self._draw_scrollbar()
 
+    def _track(self):
+        """Верх и высота дорожки полосы прокрутки и высота ползунка (в пикселях экрана)."""
+        track = self.h - self.header_line - 24
+        thumb = max(30, track * self.visible / len(self.rows))
+        return S(self.y + self.header_line + 8), S(track), S(thumb)
+
     def _draw_scrollbar(self):
         if len(self.rows) <= self.visible:
             return
-        track = self.h - self.header_line - 24
-        thumb = max(30, track * self.visible / len(self.rows))
-        start = self.y + self.header_line + 8
-        start += (track - thumb) * self.offset / max(1, len(self.rows) - self.visible)
-        x = S(self.x + self.w - 9)
+        top, track, thumb = self._track()
+        start = top + (track - thumb) * self.offset / max(1, len(self.rows) - self.visible)
+        x = S(self.x + self.w - 12)
+        self.board.create_rectangle(
+            x - S(10),
+            top - S(6),
+            x + S(10),
+            top + track + S(6),
+            fill=PANEL_GRAY,
+            outline="",
+            tags=(self.layer, self.tag, self.tag + "bar"),
+        )
         self.board.create_line(
             x,
-            S(start),
+            start,
             x,
-            S(start + thumb),
-            fill="#b9b9b9",
-            width=S(5),
+            start + thumb,
+            fill="#9aa0a6" if self.board.drag == self._drag_to else "#b9b9b9",
+            width=S(7),
             capstyle="round",
-            tags=(self.layer, self.tag),
+            tags=(self.layer, self.tag, self.tag + "bar"),
         )
+
+    def _press_bar(self, event):
+        self.board.drag = self._drag_to
+        self._drag_to(event)
+
+    def _drag_to(self, event):
+        """Ползунок следует за курсором: положение мыши на дорожке даёт первую видимую строку."""
+        top, track, thumb = self._track()
+        free = max(1, track - thumb)
+        ratio = min(max((event.y - top - thumb / 2) / free, 0), 1)
+        offset = round(ratio * max(0, len(self.rows) - self.visible))
+        if offset != self.offset:
+            self.offset = offset
+            self.redraw()
 
     def _click(self, event):
         item = self.board.find_withtag("current")
