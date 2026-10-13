@@ -26,7 +26,7 @@ def prepare_address(raw):
     Не изменился - остаётся как есть. Изменился - его оформляет DeepSeek; без связи адрес
     сохраняется как введён, а запрос встаёт в очередь (файл address_queue.json).
     """
-    raw = check.require_text(raw, "Адрес дома")
+    raw = check.check_length(check.require_text(raw, "Адрес дома"), check.MAX_ADDRESS, "Адрес дома")
     current = get_hoa()
     if current is not None and raw == current["address"]:
         return raw, has_pending_address()
@@ -62,11 +62,7 @@ def update_hoa(data):
     rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2", check.MAX_TARIFF_RUB)
     if get_hoa() is None:
         raise AppError("Данные ТСЖ не заполнены.")
-    address, _ = prepare_address(
-        check.check_length(
-            check.require_text(data["address"], "Адрес дома"), check.MAX_ADDRESS, "Адрес дома"
-        )
-    )
+    address, _ = prepare_address(data["address"])
     db.execute(
         "UPDATE hoa SET name = ?, inn = ?, address = ?, rate_per_m2 = ?", (name, inn, address, rate)
     )

@@ -259,7 +259,7 @@ def update_chairman(user_id, data, new_password=None):
     hoa_name = check.check_hoa_name(data["hoa_name"])
     inn = check.check_inn(data["inn"])
     address, _ = hoa.prepare_address(data["address"])
-    rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2")
+    rate = check.rubles_to_kopecks(data["rate"], "Тариф за 1 м2", check.MAX_TARIFF_RUB)
     if new_password is not None:
         new_password = check.check_password(new_password, new_password)
     with db.transaction() as conn:

@@ -1,6 +1,6 @@
 """Отправка писем: новый пароль и код подтверждения регистрации.
 
-Два способа (выбирается по настройкам в mail_config.json):
+Два способа (выбирается по настройкам в файле .env):
   1. Скрипт Google Apps Script по HTTPS (порт 443): включается, если указан apps_script_url.
      Письмо уходит с вашей почты Gmail и проходит там, где почтовые порты закрыты (например, VPN).
   2. SMTP (по умолчанию Gmail): сначала порт 465 (SSL), если не вышло - порт 587 (STARTTLS).
@@ -108,7 +108,7 @@ def send_mail(recipient, subject, text):
     use_script = bool(config["apps_script_url"])
     smtp_ready = bool(config["smtp_user"] and config["smtp_password"])
     if not (use_script or smtp_ready):
-        raise AppError("Отправка почты не настроена: заполните файл mail_config.json.")
+        raise AppError("Отправка почты не настроена: заполните файл .env.")
     try:
         if use_script:
             send_by_apps_script(config, recipient, subject, text)
@@ -121,7 +121,7 @@ def send_mail(recipient, subject, text):
     except smtplib.SMTPAuthenticationError:
         raise AppError(
             "Gmail отклонил вход. Если включён VPN, отключите его: Gmail часто блокирует вход "
-            "с адресов VPN. Также проверьте пароль приложения в mail_config.json."
+            "с адресов VPN. Также проверьте пароль приложения в .env."
         ) from None
     except (smtplib.SMTPException, OSError, ValueError) as error:
         raise AppError(describe_error(error, use_script)) from None
@@ -148,7 +148,7 @@ def describe_error(error, over_https):
     else:
         hint = (
             "Нет соединения с почтовым сервером: почтовые порты закрыты сетью или VPN. "
-            "Отключите VPN либо настройте отправку через скрипт Google (apps_script_url "
-            "в mail_config.json) - она работает и с VPN."
+            "Отключите VPN либо настройте отправку через скрипт Google (APPS_SCRIPT_URL "
+            "в .env) - она работает и с VPN."
         )
     return f"Не удалось отправить письмо ({reason}). {hint}"

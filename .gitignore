@@ -11,8 +11,25 @@ dist/
 *.db
 # скриншоты для отчёта
 shots/
-# настройки почты с паролями и ключами (образец - mail_config.example.json)
-mail_config.json
 
 # очередь оформления адреса (создаётся программой при отсутствии интернета)
 address_queue.json
+
+# отчёты покрытия и логи сборки
+.coverage
+htmlcov/
+build_*.log
+# секреты (ключи API, пароли); образец без секретов - .env.example
+.env
+
+# файлы помощников ИИ и редактора
+CLAUDE.md
+.claude/
+.codeium/
+.cursor/
+.vscode/
+.idea/
+*.docx
+*.pdf
+!docs/*.docx
+!docs/*.pdf
